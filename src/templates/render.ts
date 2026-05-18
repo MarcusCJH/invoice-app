@@ -8,7 +8,7 @@ import { escapeHtml, formatDate, formatMoney } from "../format";
 import { isMobileNumber } from "../paynow";
 import type { AppState, DocumentType } from "../types";
 
-export function renderInvoiceHtml(state: AppState): string {
+export function renderInvoiceHtml(state: AppState, qrImages: { uen?: string; mobile?: string } = {}): string {
   const { profile, invoice } = state;
   const totals = calculateTotals(invoice.lineItems, {
     discountExGst: invoice.discountExGst,
@@ -123,12 +123,12 @@ export function renderInvoiceHtml(state: AppState): string {
           </div>
           ${profile.uen ? `
           <div style="text-align:center;flex-shrink:0">
-            <canvas id="paynow-qr-uen" width="110" height="110"></canvas>
+            ${qrImages.uen ? `<img src="${qrImages.uen}" width="110" height="110" alt="PayNow QR" />` : `<canvas id="paynow-qr-uen" width="110" height="110"></canvas>`}
             <p style="margin:0.2rem 0 0;font-size:0.68rem;color:#555">PayNow (UEN)<br>${escapeHtml(profile.uen)}</p>
           </div>` : ""}
           ${profile.paynow && isMobileNumber(profile.paynow) ? `
           <div style="text-align:center;flex-shrink:0">
-            <canvas id="paynow-qr-mobile" width="110" height="110"></canvas>
+            ${qrImages.mobile ? `<img src="${qrImages.mobile}" width="110" height="110" alt="PayNow QR" />` : `<canvas id="paynow-qr-mobile" width="110" height="110"></canvas>`}
             <p style="margin:0.2rem 0 0;font-size:0.68rem;color:#555">PayNow (Mobile)<br>${escapeHtml(profile.paynow)}</p>
           </div>` : ""}
         </div>

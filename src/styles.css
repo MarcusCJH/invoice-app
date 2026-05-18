@@ -446,6 +446,25 @@ body {
   color: #888;
 }
 
+.form-section-title {
+  margin: 1.5rem 0 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+}
+
+.form-section-title:first-child {
+  margin-top: 0;
+}
+
+.form-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.5rem 0 0;
+}
+
 .hidden {
   display: none !important;
 }

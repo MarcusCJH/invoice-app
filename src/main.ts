@@ -6,7 +6,7 @@ import {
 } from "./documents";
 import { calculateTotals } from "./gst";
 import { formatMoney } from "./format";
-import { buildPayNowPayload } from "./paynow";
+import { buildPayNowPayload, isMobileNumber } from "./paynow";
 import {
   exportJson,
   importJson,
@@ -17,10 +17,7 @@ import {
 import { docTypeLabel, renderInvoiceHtml } from "./templates/render";
 import type { AppState, LineItem } from "./types";
 
-type Tab = "profile" | "invoice";
-
 let state: AppState = loadState();
-let activeTab: Tab = "profile";
 
 function totals() {
   return calculateTotals(state.invoice.lineItems, {
@@ -43,38 +40,36 @@ function validationIssues() {
   );
 }
 
-// Renders PayNow QR canvases (UEN and/or mobile) if present in the DOM.
-function renderQR(): void {
-  const t = totals();
-  const payable = state.profile.gstRegistered ? t.totalInclGst : t.taxableExGst;
-  const amount = payable > 0 ? payable : undefined;
-  const reference = state.invoice.invoiceNumber || undefined;
-  const name = state.profile.name || "Payee";
-  const opts = { width: 110, margin: 2 };
-
-  const uenCanvas = document.getElementById("paynow-qr-uen") as HTMLCanvasElement | null;
-  if (uenCanvas && state.profile.uen) {
-    const payload = buildPayNowPayload({ payTo: state.profile.uen, name, amount, reference });
-    QRCode.toCanvas(uenCanvas, payload, opts).catch(() => {});
-  }
-
-  const mobileCanvas = document.getElementById("paynow-qr-mobile") as HTMLCanvasElement | null;
-  if (mobileCanvas && state.profile.paynow) {
-    const payload = buildPayNowPayload({ payTo: state.profile.paynow, name, amount, reference });
-    QRCode.toCanvas(mobileCanvas, payload, opts).catch(() => {});
-  }
-}
-
-// Updates only the right-hand preview and reactive labels — does NOT touch the form.
-// Safe to call on every keystroke without destroying focus.
-function syncPreview(): void {
+// Pre-computes QR data URLs then rebuilds the preview HTML in one shot.
+// Using <img src="data:..."> avoids canvas elements being destroyed by innerHTML replacement.
+async function syncPreview(): Promise<void> {
   const t = totals();
   const dt = docType();
   const issues = validationIssues();
   const label = docTypeLabel(dt);
 
+  const qrImages: { uen?: string; mobile?: string } = {};
+  const payable = state.profile.gstRegistered ? t.totalInclGst : t.taxableExGst;
+  const amount = payable > 0 ? payable : undefined;
+  const reference = state.invoice.invoiceNumber || undefined;
+  const name = state.profile.name || "Payee";
+  const qrOpts = { width: 110, margin: 2 };
+
+  if (state.profile.uen) {
+    try {
+      const payload = buildPayNowPayload({ payTo: state.profile.uen, name, amount, reference });
+      qrImages.uen = await QRCode.toDataURL(payload, qrOpts);
+    } catch {}
+  }
+  if (state.profile.paynow && isMobileNumber(state.profile.paynow)) {
+    try {
+      const payload = buildPayNowPayload({ payTo: state.profile.paynow, name, amount, reference });
+      qrImages.mobile = await QRCode.toDataURL(payload, qrOpts);
+    } catch {}
+  }
+
   const previewEl = document.getElementById("preview-root");
-  if (previewEl) previewEl.innerHTML = renderInvoiceHtml(state);
+  if (previewEl) previewEl.innerHTML = renderInvoiceHtml(state, qrImages);
 
   const previewBadge = document.getElementById("preview-badge");
   if (previewBadge) {
@@ -102,15 +97,12 @@ function syncPreview(): void {
 
 function persist(): void {
   saveState(state);
-  syncPreview();
-  renderQR();
+  void syncPreview();
 }
 
-// Used for structural changes that alter the form DOM (adding/removing fields or items).
 function persistAndRender(): void {
   saveState(state);
   render();
-  renderQR();
 }
 
 function assignInvoiceNumber(): void {
@@ -147,9 +139,14 @@ function bindInput(
   });
 }
 
-function renderProfileForm(container: HTMLElement): void {
+function renderForm(container: HTMLElement): void {
   const p = state.profile;
+  const inv = state.invoice;
+  const t = totals();
+  const dt = docType();
+
   container.innerHTML = `
+    <h3 class="form-section-title">Your Business</h3>
     <div class="form-grid form-grid--2">
       <div class="field field--full">
         <label for="biz-name">Business / trading name</label>
@@ -179,21 +176,22 @@ function renderProfileForm(container: HTMLElement): void {
         <input id="biz-gst-reg" type="checkbox" ${p.gstRegistered ? "checked" : ""} />
         <label for="biz-gst-reg">GST-registered business</label>
       </div>
-      <div class="field ${p.gstRegistered ? "" : "hidden"}" id="gst-fields">
+      ${p.gstRegistered ? `
+      <div class="field">
         <label for="biz-gst-no">GST registration number</label>
         <input id="biz-gst-no" type="text" value="${esc(p.gstRegistrationNumber)}" />
       </div>
-      <div class="field ${p.gstRegistered ? "" : "hidden"}" id="gst-method-field">
+      <div class="field">
         <label for="biz-calc">GST calculation method</label>
         <select id="biz-calc">
           <option value="per_line" ${p.calculationMethod === "per_line" ? "selected" : ""}>Per line item (9% each)</option>
           <option value="on_subtotal" ${p.calculationMethod === "on_subtotal" ? "selected" : ""}>On subtotal (9% once)</option>
         </select>
       </div>
-      <div class="field checkbox-row ${p.gstRegistered ? "" : "hidden"}" id="cash-round-field">
+      <div class="field checkbox-row">
         <input id="biz-cash-round" type="checkbox" ${p.roundCashToFiveCents ? "checked" : ""} />
         <label for="biz-cash-round">Round total to nearest 5¢ (cash)</label>
-      </div>
+      </div>` : ""}
       <div class="field">
         <label for="biz-bank">Bank name</label>
         <input id="biz-bank" type="text" value="${esc(p.bankName)}" />
@@ -207,32 +205,12 @@ function renderProfileForm(container: HTMLElement): void {
         <input id="biz-paynow" type="text" value="${esc(p.paynow)}" />
       </div>
     </div>
-  `;
 
-  bindInput(q("#biz-name"), () => p.name, (v) => { p.name = v as string; });
-  bindInput(q("#biz-address"), () => p.address, (v) => { p.address = v as string; });
-  bindInput(q("#biz-phone"), () => p.phone, (v) => { p.phone = v as string; });
-  bindInput(q("#biz-email"), () => p.email, (v) => { p.email = v as string; });
-  bindInput(q("#biz-uen"), () => p.uen, (v) => { p.uen = v as string; });
-  bindInput(q("#biz-prefix"), () => p.invoicePrefix, (v) => { p.invoicePrefix = v as string; });
-  // rerender=true: toggling GST registration shows/hides fields in the form
-  bindInput(q("#biz-gst-reg"), () => p.gstRegistered, (v) => { p.gstRegistered = v as boolean; }, true);
-  bindInput(q("#biz-gst-no"), () => p.gstRegistrationNumber, (v) => { p.gstRegistrationNumber = v as string; });
-  bindInput(q("#biz-calc"), () => p.calculationMethod, (v) => { p.calculationMethod = v as typeof p.calculationMethod; });
-  bindInput(q("#biz-cash-round"), () => p.roundCashToFiveCents, (v) => { p.roundCashToFiveCents = v as boolean; });
-  bindInput(q("#biz-bank"), () => p.bankName, (v) => { p.bankName = v as string; });
-  bindInput(q("#biz-account"), () => p.bankAccount, (v) => { p.bankAccount = v as string; });
-  bindInput(q("#biz-paynow"), () => p.paynow, (v) => { p.paynow = v as string; });
-}
+    <hr class="form-divider" />
 
-function renderInvoiceForm(container: HTMLElement): void {
-  const inv = state.invoice;
-  const t = totals();
-  const dt = docType();
-
-  container.innerHTML = `
+    <h3 class="form-section-title">Invoice</h3>
     <p id="form-doc-type-badge" class="badge">${esc(docTypeLabel(dt))}</p>
-    <div class="form-grid form-grid--2" style="margin-top: 1rem">
+    <div class="form-grid form-grid--2" style="margin-top:0.75rem">
       <div class="field">
         <label for="inv-no">Invoice number</label>
         <div style="display:flex;gap:0.5rem">
@@ -252,9 +230,6 @@ function renderInvoiceForm(container: HTMLElement): void {
         <label for="inv-terms">Payment terms</label>
         <input id="inv-terms" type="text" value="${esc(inv.paymentTerms)}" />
       </div>
-    </div>
-
-    <div class="form-grid form-grid--2" style="margin-top:1rem">
       <div class="field field--full checkbox-row">
         <input id="inv-credit-note" type="checkbox" ${inv.isCreditNote ? "checked" : ""} />
         <label for="inv-credit-note">This is a credit note</label>
@@ -266,14 +241,14 @@ function renderInvoiceForm(container: HTMLElement): void {
       </div>` : ""}
     </div>
 
-    <h3 style="margin:1.25rem 0 0.5rem;font-size:0.9rem">Customer</h3>
+    <h3 class="form-section-title" style="margin-top:1.25rem">Customer</h3>
     <div class="form-grid form-grid--2">
       <div class="field">
         <label for="cust-name">Name</label>
         <input id="cust-name" type="text" value="${esc(inv.customer.name)}" />
       </div>
       <div class="field checkbox-row" style="align-self:end">
-        <input id="cust-gst" type="checkbox" ${inv.customer.gstRegistered ? "checked" : ""} ${!state.profile.gstRegistered ? "disabled" : ""} />
+        <input id="cust-gst" type="checkbox" ${inv.customer.gstRegistered ? "checked" : ""} ${!p.gstRegistered ? "disabled" : ""} />
         <label for="cust-gst">Customer is GST-registered</label>
       </div>
       <div class="field field--full">
@@ -282,7 +257,7 @@ function renderInvoiceForm(container: HTMLElement): void {
       </div>
     </div>
 
-    <h3 style="margin:1.25rem 0 0.5rem;font-size:0.9rem">Line items</h3>
+    <h3 class="form-section-title" style="margin-top:1.25rem">Line items</h3>
     <div class="line-items" id="line-items"></div>
     <button type="button" class="btn btn--sm" id="btn-add-line" style="margin-top:0.5rem">+ Add line</button>
 
@@ -306,21 +281,37 @@ function renderInvoiceForm(container: HTMLElement): void {
     </div>
   `;
 
+  // Profile bindings
+  bindInput(q("#biz-name"), () => p.name, (v) => { p.name = v as string; });
+  bindInput(q("#biz-address"), () => p.address, (v) => { p.address = v as string; });
+  bindInput(q("#biz-phone"), () => p.phone, (v) => { p.phone = v as string; });
+  bindInput(q("#biz-email"), () => p.email, (v) => { p.email = v as string; });
+  bindInput(q("#biz-uen"), () => p.uen, (v) => { p.uen = v as string; });
+  bindInput(q("#biz-prefix"), () => p.invoicePrefix, (v) => { p.invoicePrefix = v as string; });
+  bindInput(q("#biz-gst-reg"), () => p.gstRegistered, (v) => { p.gstRegistered = v as boolean; }, true);
+  const gstNoEl = document.querySelector<HTMLInputElement>("#biz-gst-no");
+  if (gstNoEl) bindInput(gstNoEl, () => p.gstRegistrationNumber, (v) => { p.gstRegistrationNumber = v as string; });
+  const calcEl = document.querySelector<HTMLSelectElement>("#biz-calc");
+  if (calcEl) bindInput(calcEl, () => p.calculationMethod, (v) => { p.calculationMethod = v as typeof p.calculationMethod; });
+  const cashRoundEl = document.querySelector<HTMLInputElement>("#biz-cash-round");
+  if (cashRoundEl) bindInput(cashRoundEl, () => p.roundCashToFiveCents, (v) => { p.roundCashToFiveCents = v as boolean; });
+  bindInput(q("#biz-bank"), () => p.bankName, (v) => { p.bankName = v as string; });
+  bindInput(q("#biz-account"), () => p.bankAccount, (v) => { p.bankAccount = v as string; });
+  bindInput(q("#biz-paynow"), () => p.paynow, (v) => { p.paynow = v as string; });
+
+  // Invoice bindings
   bindInput(q("#inv-no"), () => inv.invoiceNumber, (v) => { inv.invoiceNumber = v as string; });
   bindInput(q("#inv-date"), () => inv.date, (v) => { inv.date = v as string; });
   bindInput(q("#inv-due"), () => inv.dueDate, (v) => { inv.dueDate = v as string; });
   bindInput(q("#inv-terms"), () => inv.paymentTerms, (v) => { inv.paymentTerms = v as string; });
+  bindInput(q("#inv-credit-note"), () => inv.isCreditNote, (v) => { inv.isCreditNote = v as boolean; }, true);
+  const origNoEl = document.querySelector<HTMLInputElement>("#inv-orig-no");
+  if (origNoEl) bindInput(origNoEl, () => inv.originalInvoiceNumber, (v) => { inv.originalInvoiceNumber = v as string; });
   bindInput(q("#cust-name"), () => inv.customer.name, (v) => { inv.customer.name = v as string; });
   bindInput(q("#cust-gst"), () => inv.customer.gstRegistered, (v) => { inv.customer.gstRegistered = v as boolean; });
   bindInput(q("#cust-addr"), () => inv.customer.address, (v) => { inv.customer.address = v as string; });
   bindInput(q("#inv-discount"), () => inv.discountExGst, (v) => { inv.discountExGst = v as number; });
   bindInput(q("#inv-notes"), () => inv.notes, (v) => { inv.notes = v as string; });
-  // rerender=true: toggling credit note shows/hides the original invoice number field
-  bindInput(q("#inv-credit-note"), () => inv.isCreditNote, (v) => { inv.isCreditNote = v as boolean; }, true);
-  const origNoEl = document.querySelector<HTMLInputElement>("#inv-orig-no");
-  if (origNoEl) {
-    bindInput(origNoEl, () => inv.originalInvoiceNumber, (v) => { inv.originalInvoiceNumber = v as string; });
-  }
 
   q("#btn-new-no").addEventListener("click", () => {
     const year = new Date().getFullYear();
@@ -330,7 +321,6 @@ function renderInvoiceForm(container: HTMLElement): void {
       state.nextSequence,
     );
     state.nextSequence += 1;
-    // Update the input value directly so we don't need a full re-render
     (q("#inv-no") as HTMLInputElement).value = state.invoice.invoiceNumber;
     persist();
   });
@@ -429,10 +419,6 @@ function render(): void {
 
     <div class="layout layout--split">
       <section class="panel">
-        <nav class="tabs no-print">
-          <button type="button" class="tab ${activeTab === "profile" ? "tab--active" : ""}" data-tab="profile">Business</button>
-          <button type="button" class="tab ${activeTab === "invoice" ? "tab--active" : ""}" data-tab="invoice">Invoice</button>
-        </nav>
         <div class="panel__body" id="form-root"></div>
         <div id="validation-container" class="panel__body" style="padding-top:0">
           ${issues.length ? `<ul class="validation-list">${issues.map((i) => `<li>${esc(i.message)}</li>`).join("")}</ul>` : ""}
@@ -444,27 +430,13 @@ function render(): void {
           <h2>Preview</h2>
           <span id="preview-badge" class="badge ${issues.length ? "badge--warn" : ""}">${esc(docTypeLabel(docType()))}</span>
         </div>
-        <div class="preview-pane" id="preview-root">
-          ${renderInvoiceHtml(state)}
-        </div>
+        <div class="preview-pane" id="preview-root"></div>
       </section>
     </div>
   `;
 
-  root.querySelectorAll("[data-tab]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      activeTab = (btn as HTMLElement).dataset.tab as Tab;
-      render();
-    });
-  });
-
-  const formRoot = q("#form-root");
-  if (activeTab === "profile") {
-    renderProfileForm(formRoot);
-  } else {
-    if (!state.invoice.invoiceNumber) assignInvoiceNumber();
-    renderInvoiceForm(formRoot);
-  }
+  if (!state.invoice.invoiceNumber) assignInvoiceNumber();
+  renderForm(q("#form-root"));
 
   q("#btn-print").addEventListener("click", () => window.print());
   q("#btn-export").addEventListener("click", () => {
@@ -482,8 +454,9 @@ function render(): void {
     state = importJson(text);
     persistAndRender();
   });
+
+  void syncPreview();
 }
 
 assignInvoiceNumber();
 render();
-renderQR();

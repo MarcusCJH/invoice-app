@@ -1,6 +1,8 @@
 :root {
   --bg: #f4f6f8;
   --surface: #ffffff;
+  --surface-alt: #fafbfc;
+  --surface-hover: #f0f3f6;
   --border: #d8dee4;
   --text: #1a2332;
   --muted: #5c6b7a;
@@ -9,10 +11,53 @@
   --warn: #b45309;
   --warn-bg: #fff7ed;
   --danger: #b91c1c;
+  --badge-bg: #e6f4f4;
+  --input-bg: #ffffff;
+  --preview-bg: #e8ecef;
   --radius: 10px;
   --shadow: 0 1px 3px rgba(26, 35, 50, 0.08);
   --font: "DM Sans", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+[data-theme="dark"] {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface-alt: #141720;
+  --surface-hover: #252938;
+  --border: #2e3347;
+  --text: #e2e8f0;
+  --muted: #8892a4;
+  --accent: #2dd4bf;
+  --accent-hover: #5eead4;
+  --warn: #f59e0b;
+  --warn-bg: #2d1f0e;
+  --danger: #f87171;
+  --badge-bg: #0d2f2f;
+  --input-bg: #1e2130;
+  --preview-bg: #080a10;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface-alt: #141720;
+    --surface-hover: #252938;
+    --border: #2e3347;
+    --text: #e2e8f0;
+    --muted: #8892a4;
+    --accent: #2dd4bf;
+    --accent-hover: #5eead4;
+    --warn: #f59e0b;
+    --warn-bg: #2d1f0e;
+    --danger: #f87171;
+    --badge-bg: #0d2f2f;
+    --input-bg: #1e2130;
+    --preview-bg: #080a10;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  }
 }
 
 *,
@@ -169,7 +214,8 @@ body {
   padding: 0.5rem 0.65rem;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--input-bg);
+  color: var(--text);
 }
 
 .field input:focus,
@@ -201,7 +247,7 @@ body {
   grid-template-columns: 1fr;
   gap: 0.5rem;
   padding: 0.75rem;
-  background: #fafbfc;
+  background: var(--surface-alt);
   border-radius: 8px;
   border: 1px solid var(--border);
 }
@@ -225,7 +271,7 @@ body {
 }
 
 .btn:hover {
-  background: #f0f3f6;
+  background: var(--surface-hover);
 }
 
 .btn--primary {
@@ -259,7 +305,7 @@ body {
   font-weight: 500;
   padding: 0.2rem 0.5rem;
   border-radius: 4px;
-  background: #e6f4f4;
+  background: var(--badge-bg);
   color: var(--accent);
 }
 
@@ -288,7 +334,7 @@ body {
 
 .preview-pane {
   padding: 1.5rem;
-  background: #e8ecef;
+  background: var(--preview-bg);
   min-height: 400px;
 }
 
@@ -466,7 +512,7 @@ body {
   align-items: center;
   gap: 1rem;
   padding: 0.75rem;
-  background: #fafbfc;
+  background: var(--surface-alt);
   border: 1px solid var(--border);
   border-radius: 8px;
   margin-bottom: 1rem;
@@ -482,7 +528,7 @@ body {
 .logo-placeholder {
   width: 48px;
   height: 48px;
-  background: #e8ecef;
+  background: var(--border);
   border-radius: 6px;
   flex-shrink: 0;
 }

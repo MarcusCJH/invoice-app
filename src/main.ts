@@ -17,6 +17,23 @@ import {
 import { docTypeLabel, renderInvoiceHtml } from "./templates/render";
 import type { AppState, LineItem } from "./types";
 
+// Initialise theme before first paint to avoid flash.
+function initTheme(): void {
+  const stored = localStorage.getItem("theme");
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.dataset.theme = stored ?? (prefersDark ? "dark" : "light");
+}
+
+function toggleTheme(): void {
+  const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  localStorage.setItem("theme", next);
+  const btn = document.querySelector<HTMLButtonElement>("#btn-theme");
+  if (btn) btn.textContent = next === "dark" ? "☀ Light" : "☾ Dark";
+}
+
+initTheme();
+
 let state: AppState = loadState();
 
 function totals() {
@@ -473,6 +490,7 @@ function render(): void {
         <h1>Invoice App</h1>
       </div>
       <div class="header-actions">
+        <button type="button" class="btn" id="btn-theme">${document.documentElement.dataset.theme === "dark" ? "☀ Light" : "☾ Dark"}</button>
         <button type="button" class="btn" id="btn-export">Export JSON</button>
         <label class="btn" style="cursor:pointer">
           Import JSON
@@ -507,6 +525,7 @@ function render(): void {
   if (!state.invoice.invoiceNumber) assignInvoiceNumber();
   renderForm(q("#form-root"));
 
+  q("#btn-theme").addEventListener("click", toggleTheme);
   q("#btn-print").addEventListener("click", () => window.print());
   q("#btn-export").addEventListener("click", () => {
     const blob = new Blob([exportJson(state)], { type: "application/json" });

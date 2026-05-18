@@ -24,10 +24,9 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install and build
-        working-directory: web
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
         run: |

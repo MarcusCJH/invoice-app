@@ -9,7 +9,6 @@ Singapore small-business invoicing tool. Runs entirely in the browser with no ba
 ## Commands
 
 ```bash
-cd web
 npm install
 npm run dev      # dev server (hot reload)
 npm run build    # tsc type-check + Vite production build → docs/

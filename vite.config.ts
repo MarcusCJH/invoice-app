@@ -5,7 +5,7 @@ export default defineConfig({
   // GitHub project Pages: set VITE_BASE=/your-repo-name/ when building for deploy
   base: process.env.VITE_BASE || "/",
   build: {
-    outDir: "../docs",
+    outDir: "docs",
     emptyOutDir: true,
   },
 });

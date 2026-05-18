@@ -470,8 +470,7 @@ function render(): void {
   root.innerHTML = `
     <header class="app-header no-print">
       <div>
-        <h1>SG Invoice</h1>
-        <p>Singapore small & home-based business invoicing</p>
+        <h1>Invoice App</h1>
       </div>
       <div class="header-actions">
         <button type="button" class="btn" id="btn-export">Export JSON</button>
@@ -499,6 +498,10 @@ function render(): void {
         <div class="preview-pane" id="preview-root"></div>
       </section>
     </div>
+
+    <footer class="app-footer no-print">
+      <a href="https://www.marcuscjh.com" target="_blank" rel="noopener">www.marcuscjh.com</a>
+    </footer>
   `;
 
   if (!state.invoice.invoiceNumber) assignInvoiceNumber();

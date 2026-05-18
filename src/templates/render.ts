@@ -136,9 +136,6 @@ export function renderInvoiceHtml(state: AppState, qrImages: { uen?: string; mob
         ${profile.uen || (profile.paynow && isMobileNumber(profile.paynow)) ? `<p style="margin:0.5rem 0 0;font-size:0.7rem;color:#777">Scan QR with your banking app (DBS/POSB, OCBC, UOB…)</p>` : ""}
       </section>` : ""}
 
-      <footer class="invoice-doc__footer">
-        <p>For record-keeping assistance only. Not tax or legal advice. Confirm requirements with IRAS or your accountant.</p>
-      </footer>
     </article>
   `;
 }

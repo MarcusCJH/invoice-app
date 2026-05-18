@@ -1,10 +1,12 @@
 import "./styles.css";
+import QRCode from "qrcode";
 import {
   detectDocumentType,
   validateDocument,
 } from "./documents";
 import { calculateTotals } from "./gst";
 import { formatMoney } from "./format";
+import { buildPayNowPayload } from "./paynow";
 import {
   exportJson,
   importJson,
@@ -39,6 +41,21 @@ function validationIssues() {
     docType(),
     totals(),
   );
+}
+
+// Renders the PayNow QR canvas if the canvas is present in the DOM.
+function renderQR(): void {
+  const canvas = document.getElementById("paynow-qr-canvas") as HTMLCanvasElement | null;
+  if (!canvas || !state.profile.uen) return;
+  const t = totals();
+  const payable = state.profile.gstRegistered ? t.totalInclGst : t.taxableExGst;
+  const payload = buildPayNowPayload({
+    uen: state.profile.uen,
+    name: state.profile.name || state.profile.uen,
+    amount: payable > 0 ? payable : undefined,
+    reference: state.invoice.invoiceNumber || undefined,
+  });
+  QRCode.toCanvas(canvas, payload, { width: 120, margin: 2 }).catch(() => {/* invalid UEN format */});
 }
 
 // Updates only the right-hand preview and reactive labels — does NOT touch the form.
@@ -79,12 +96,14 @@ function syncPreview(): void {
 function persist(): void {
   saveState(state);
   syncPreview();
+  renderQR();
 }
 
 // Used for structural changes that alter the form DOM (adding/removing fields or items).
 function persistAndRender(): void {
   saveState(state);
   render();
+  renderQR();
 }
 
 function assignInvoiceNumber(): void {
@@ -460,3 +479,4 @@ function render(): void {
 
 assignInvoiceNumber();
 render();
+renderQR();

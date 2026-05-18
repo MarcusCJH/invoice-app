@@ -112,12 +112,21 @@ export function renderInvoiceHtml(state: AppState): string {
       ${invoice.paymentTerms ? `<p class="invoice-doc__terms">${escapeHtml(invoice.paymentTerms)}</p>` : ""}
       ${invoice.notes ? `<p class="invoice-doc__notes"><strong>Notes:</strong> ${escapeHtml(invoice.notes)}</p>` : ""}
 
-      ${profile.bankAccount || profile.paynow ? `
+      ${profile.bankAccount || profile.paynow || profile.uen ? `
       <section class="invoice-doc__payment">
         <h2>Payment</h2>
-        ${profile.bankName ? `<p>${escapeHtml(profile.bankName)}</p>` : ""}
-        ${profile.bankAccount ? `<p>Account: ${escapeHtml(profile.bankAccount)}</p>` : ""}
-        ${profile.paynow ? `<p>PayNow: ${escapeHtml(profile.paynow)}</p>` : ""}
+        <div style="display:flex;gap:1.5rem;align-items:flex-start">
+          <div>
+            ${profile.bankName ? `<p>${escapeHtml(profile.bankName)}</p>` : ""}
+            ${profile.bankAccount ? `<p>Account: ${escapeHtml(profile.bankAccount)}</p>` : ""}
+            ${profile.paynow ? `<p>PayNow: ${escapeHtml(profile.paynow)}</p>` : ""}
+          </div>
+          ${profile.uen ? `
+          <div style="text-align:center;flex-shrink:0">
+            <canvas id="paynow-qr-canvas" width="120" height="120"></canvas>
+            <p style="margin:0.25rem 0 0;font-size:0.7rem;color:#555">PayNow · ${escapeHtml(profile.uen)}</p>
+          </div>` : ""}
+        </div>
       </section>` : ""}
 
       <footer class="invoice-doc__footer">

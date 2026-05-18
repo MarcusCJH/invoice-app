@@ -117,6 +117,86 @@ def test_validate_gst_mode_mismatch():
     assert any(i["field"] == "profile.gst_registered" for i in issues)
 
 
+def test_discount_scales_per_line_gst_proportionally():
+    # taxable/subtotal ratio is applied to the sum of per-line GSTs
+    items = [
+        LineItem("A", Decimal("1"), Decimal("100")),
+        LineItem("B", Decimal("1"), Decimal("200")),
+    ]
+    totals = calculate_totals(
+        items,
+        discount_ex_gst=Decimal("30"),
+        method=CalculationMethod.PER_LINE,
+    )
+    assert totals["subtotal_ex_gst"] == Decimal("300.00")
+    assert totals["taxable_ex_gst"] == Decimal("270.00")
+    # line GSTs: 9.00 + 18.00 = 27.00; ratio = 270/300 = 0.9; scaled = 24.30
+    assert totals["gst_amount"] == Decimal("24.30")
+    assert totals["total_incl_gst"] == Decimal("294.30")
+
+
+def test_discount_with_on_subtotal():
+    items = [
+        LineItem("A", Decimal("1"), Decimal("100")),
+        LineItem("B", Decimal("1"), Decimal("200")),
+    ]
+    totals = calculate_totals(
+        items,
+        discount_ex_gst=Decimal("30"),
+        method=CalculationMethod.ON_SUBTOTAL,
+    )
+    assert totals["taxable_ex_gst"] == Decimal("270.00")
+    # round_cents(270 * 0.09) = 24.30
+    assert totals["gst_amount"] == Decimal("24.30")
+    assert totals["total_incl_gst"] == Decimal("294.30")
+
+
+def test_per_line_and_on_subtotal_differ_with_discount():
+    # Pen example with a $0.38 discount: taxable = 3.46, ratio = 3.46/3.84
+    # per-line: round_cents(0.36 * ratio) = 0.32; on_subtotal: round_cents(3.46 * 0.09) = 0.31
+    per_line = calculate_totals(
+        _pen_items(),
+        discount_ex_gst=Decimal("0.38"),
+        method=CalculationMethod.PER_LINE,
+    )
+    on_sub = calculate_totals(
+        _pen_items(),
+        discount_ex_gst=Decimal("0.38"),
+        method=CalculationMethod.ON_SUBTOTAL,
+    )
+    assert per_line["taxable_ex_gst"] == on_sub["taxable_ex_gst"] == Decimal("3.46")
+    assert per_line["gst_amount"] == Decimal("0.32")
+    assert on_sub["gst_amount"] == Decimal("0.31")
+    assert per_line["total_incl_gst"] == Decimal("3.78")
+    assert on_sub["total_incl_gst"] == Decimal("3.77")
+
+
+def test_full_discount_yields_zero_gst():
+    items = [LineItem("Item", Decimal("1"), Decimal("100"))]
+    for method in CalculationMethod:
+        totals = calculate_totals(
+            items,
+            discount_ex_gst=Decimal("100"),
+            method=method,
+        )
+        assert totals["taxable_ex_gst"] == Decimal("0.00")
+        assert totals["gst_amount"] == Decimal("0.00")
+        assert totals["total_incl_gst"] == Decimal("0.00")
+
+
+def test_excess_discount_clamped_to_zero():
+    # Discount larger than subtotal must not produce negative taxable
+    items = [LineItem("Item", Decimal("1"), Decimal("50"))]
+    totals = calculate_totals(
+        items,
+        discount_ex_gst=Decimal("999"),
+        method=CalculationMethod.PER_LINE,
+    )
+    assert totals["taxable_ex_gst"] == Decimal("0.00")
+    assert totals["gst_amount"] == Decimal("0.00")
+    assert totals["total_incl_gst"] == Decimal("0.00")
+
+
 def test_credit_note_detected_when_flag_set():
     profile = BusinessProfile(gst_registered=True, gst_registration_number="123456789A")
     invoice = Invoice(

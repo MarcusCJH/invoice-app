@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
 
 
@@ -17,14 +16,6 @@ def main() -> None:
     print(f"Invoice: {data.get('invoice', {}).get('invoiceNumber', 'unknown')}")
     print(f"Customer: {data.get('invoice', {}).get('customer', {}).get('name', '')}")
     print("Open the web app and use Print / Save as PDF for formatted output.")
-
-    try:
-        import reportlab  # noqa: F401
-    except ImportError:
-        print(
-            "Install CLI extras for future PDF support: uv sync --extra cli",
-            file=sys.stderr,
-        )
 
 
 if __name__ == "__main__":

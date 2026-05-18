@@ -3,7 +3,7 @@ import {
   documentTitle,
   includesGstStatement,
 } from "../documents";
-import { calculateTotals, lineTotalExGst } from "../gst";
+import { calculateTotals, lineTotalExGst, GST_RATE, SIMPLIFIED_TAX_INVOICE_MAX } from "../gst";
 import { escapeHtml, formatDate, formatMoney } from "../format";
 import type { AppState, DocumentType } from "../types";
 
@@ -100,7 +100,7 @@ export function renderInvoiceHtml(state: AppState): string {
         ${invoice.discountExGst > 0 ? `<div class="totals-row"><span>Discount (ex GST)</span><span>−${formatMoney(totals.discountExGst, invoice.currency)}</span></div>` : ""}
         ${showGst ? `
         <div class="totals-row"><span>Taxable (ex GST)</span><span>${formatMoney(totals.taxableExGst, invoice.currency)}</span></div>
-        <div class="totals-row"><span>GST @ 9%</span><span>${formatMoney(totals.gstAmount, invoice.currency)}</span></div>` : ""}
+        <div class="totals-row"><span>GST @ ${GST_RATE * 100}%</span><span>${formatMoney(totals.gstAmount, invoice.currency)}</span></div>` : ""}
         ` : ""}
         <div class="totals-row totals-row--grand">
           <span>Total payable</span>
@@ -131,7 +131,7 @@ export function docTypeLabel(docType: DocumentType): string {
   const labels: Record<DocumentType, string> = {
     invoice: "Standard invoice",
     tax_invoice: "Full tax invoice",
-    simplified_tax_invoice: "Simplified tax invoice (≤ $1,000)",
+    simplified_tax_invoice: `Simplified tax invoice (≤ $${SIMPLIFIED_TAX_INVOICE_MAX.toLocaleString()})`,
     receipt: "Receipt (non-GST customer)",
     credit_note: "Credit note",
   };

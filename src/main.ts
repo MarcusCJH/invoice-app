@@ -43,19 +43,26 @@ function validationIssues() {
   );
 }
 
-// Renders the PayNow QR canvas if the canvas is present in the DOM.
+// Renders PayNow QR canvases (UEN and/or mobile) if present in the DOM.
 function renderQR(): void {
-  const canvas = document.getElementById("paynow-qr-canvas") as HTMLCanvasElement | null;
-  if (!canvas || !state.profile.uen) return;
   const t = totals();
   const payable = state.profile.gstRegistered ? t.totalInclGst : t.taxableExGst;
-  const payload = buildPayNowPayload({
-    uen: state.profile.uen,
-    name: state.profile.name || state.profile.uen,
-    amount: payable > 0 ? payable : undefined,
-    reference: state.invoice.invoiceNumber || undefined,
-  });
-  QRCode.toCanvas(canvas, payload, { width: 120, margin: 2 }).catch(() => {/* invalid UEN format */});
+  const amount = payable > 0 ? payable : undefined;
+  const reference = state.invoice.invoiceNumber || undefined;
+  const name = state.profile.name || "Payee";
+  const opts = { width: 110, margin: 2 };
+
+  const uenCanvas = document.getElementById("paynow-qr-uen") as HTMLCanvasElement | null;
+  if (uenCanvas && state.profile.uen) {
+    const payload = buildPayNowPayload({ payTo: state.profile.uen, name, amount, reference });
+    QRCode.toCanvas(uenCanvas, payload, opts).catch(() => {});
+  }
+
+  const mobileCanvas = document.getElementById("paynow-qr-mobile") as HTMLCanvasElement | null;
+  if (mobileCanvas && state.profile.paynow) {
+    const payload = buildPayNowPayload({ payTo: state.profile.paynow, name, amount, reference });
+    QRCode.toCanvas(mobileCanvas, payload, opts).catch(() => {});
+  }
 }
 
 // Updates only the right-hand preview and reactive labels — does NOT touch the form.

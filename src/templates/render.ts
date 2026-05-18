@@ -5,6 +5,7 @@ import {
 } from "../documents";
 import { calculateTotals, lineTotalExGst, GST_RATE, SIMPLIFIED_TAX_INVOICE_MAX } from "../gst";
 import { escapeHtml, formatDate, formatMoney } from "../format";
+import { isMobileNumber } from "../paynow";
 import type { AppState, DocumentType } from "../types";
 
 export function renderInvoiceHtml(state: AppState): string {
@@ -115,18 +116,23 @@ export function renderInvoiceHtml(state: AppState): string {
       ${profile.bankAccount || profile.paynow || profile.uen ? `
       <section class="invoice-doc__payment">
         <h2>Payment</h2>
-        <div style="display:flex;gap:1.5rem;align-items:flex-start">
+        <div style="display:flex;gap:1.5rem;align-items:flex-start;flex-wrap:wrap">
           <div>
             ${profile.bankName ? `<p>${escapeHtml(profile.bankName)}</p>` : ""}
             ${profile.bankAccount ? `<p>Account: ${escapeHtml(profile.bankAccount)}</p>` : ""}
-            ${profile.paynow ? `<p>PayNow: ${escapeHtml(profile.paynow)}</p>` : ""}
           </div>
           ${profile.uen ? `
           <div style="text-align:center;flex-shrink:0">
-            <canvas id="paynow-qr-canvas" width="120" height="120"></canvas>
-            <p style="margin:0.25rem 0 0;font-size:0.7rem;color:#555">PayNow · ${escapeHtml(profile.uen)}</p>
+            <canvas id="paynow-qr-uen" width="110" height="110"></canvas>
+            <p style="margin:0.2rem 0 0;font-size:0.68rem;color:#555">PayNow (UEN)<br>${escapeHtml(profile.uen)}</p>
+          </div>` : ""}
+          ${profile.paynow && isMobileNumber(profile.paynow) ? `
+          <div style="text-align:center;flex-shrink:0">
+            <canvas id="paynow-qr-mobile" width="110" height="110"></canvas>
+            <p style="margin:0.2rem 0 0;font-size:0.68rem;color:#555">PayNow (Mobile)<br>${escapeHtml(profile.paynow)}</p>
           </div>` : ""}
         </div>
+        ${profile.uen || (profile.paynow && isMobileNumber(profile.paynow)) ? `<p style="margin:0.5rem 0 0;font-size:0.7rem;color:#777">Scan QR with your banking app (DBS/POSB, OCBC, UOB…)</p>` : ""}
       </section>` : ""}
 
       <footer class="invoice-doc__footer">

@@ -4,11 +4,15 @@ export const GST_RATE = 0.09;
 export const SIMPLIFIED_TAX_INVOICE_MAX = 1000;
 
 export function roundCents(value: number): number {
-  return Math.round(value * 100) / 100;
+  // Exponential notation avoids IEEE 754 error from `value * 100`
+  // e.g. 1.005 * 100 = 100.49999... but Number("1.005e2") = 100.5
+  return Number(Math.round(Number(value + "e2")) + "e-2");
 }
 
 export function roundToFiveCents(value: number): number {
-  return Math.round(value / 0.05) * 0.05;
+  // Convert to integer cents first to avoid 0.05 representation errors
+  const cents = Math.round(Number(value + "e2"));
+  return Number(Math.round(cents / 5) * 5 + "e-2");
 }
 
 function gstOnAmount(amountExGst: number): number {

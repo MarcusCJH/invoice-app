@@ -16,6 +16,7 @@ export const defaultProfile = (): BusinessProfile => ({
   invoicePrefix: "INV",
   calculationMethod: "per_line",
   roundCashToFiveCents: false,
+  logo: "",
 });
 
 export const defaultInvoice = (): Invoice => ({

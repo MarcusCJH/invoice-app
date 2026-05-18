@@ -52,6 +52,7 @@ export function renderInvoiceHtml(state: AppState, qrImages: { uen?: string; mob
     <article class="invoice-doc" data-doc-type="${docType}">
       <header class="invoice-doc__header">
         <div class="invoice-doc__brand">
+          ${profile.logo ? `<img src="${profile.logo}" class="invoice-doc__logo" alt="" />` : ""}
           <h1 class="invoice-doc__title">${title}</h1>
           ${isSimplified ? '<p class="invoice-doc__subtitle">Simplified tax invoice</p>' : ""}
         </div>

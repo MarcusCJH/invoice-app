@@ -117,6 +117,37 @@ function assignInvoiceNumber(): void {
   }
 }
 
+// Resizes an image file to max 400px and returns a PNG data URL.
+// SVG files are stored as-is to preserve vector quality.
+async function readLogoDataUrl(file: File): Promise<string> {
+  if (file.type === "image/svg+xml") {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const MAX = 400;
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Failed to load image")); };
+    img.src = url;
+  });
+}
+
 // rerender: true forces a full form rebuild (use for checkboxes that show/hide fields).
 function bindInput(
   el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
@@ -147,6 +178,21 @@ function renderForm(container: HTMLElement): void {
 
   container.innerHTML = `
     <h3 class="form-section-title">Your Business</h3>
+    <div class="logo-field">
+      ${p.logo
+        ? `<img src="${p.logo}" class="logo-preview" alt="Logo" />`
+        : `<div class="logo-placeholder"></div>`}
+      <div>
+        <div style="display:flex;gap:0.4rem;margin-bottom:0.3rem">
+          <label class="btn btn--sm" style="cursor:pointer">
+            ${p.logo ? "Change logo" : "Upload logo"}
+            <input type="file" id="logo-input" accept="image/*" class="hidden" />
+          </label>
+          ${p.logo ? `<button type="button" class="btn btn--sm btn--danger" id="btn-remove-logo">Remove</button>` : ""}
+        </div>
+        <p class="logo-hint">PNG, JPG or SVG · shown on the invoice</p>
+      </div>
+    </div>
     <div class="form-grid form-grid--2">
       <div class="field field--full">
         <label for="biz-name">Business / trading name</label>
@@ -280,6 +326,26 @@ function renderForm(container: HTMLElement): void {
       </div>
     </div>
   `;
+
+  // Logo upload / remove
+  const logoInput = document.querySelector<HTMLInputElement>("#logo-input");
+  if (logoInput) {
+    logoInput.addEventListener("change", async () => {
+      const file = logoInput.files?.[0];
+      if (!file) return;
+      try {
+        p.logo = await readLogoDataUrl(file);
+        persistAndRender();
+      } catch {}
+    });
+  }
+  const removeLogo = document.querySelector<HTMLButtonElement>("#btn-remove-logo");
+  if (removeLogo) {
+    removeLogo.addEventListener("click", () => {
+      p.logo = "";
+      persistAndRender();
+    });
+  }
 
   // Profile bindings
   bindInput(q("#biz-name"), () => p.name, (v) => { p.name = v as string; });

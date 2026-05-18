@@ -34,6 +34,7 @@ export interface BusinessProfile {
   invoicePrefix: string;
   calculationMethod: CalculationMethod;
   roundCashToFiveCents: boolean;
+  logo: string; // data URL, empty string = no logo
 }
 
 export interface Invoice {

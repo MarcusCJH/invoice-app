@@ -19,6 +19,7 @@ export function renderInvoiceHtml(state: AppState): string {
   const showGst = profile.gstRegistered;
   const isSimplified = docType === "simplified_tax_invoice";
   const isReceipt = docType === "receipt";
+  const isCreditNote = docType === "credit_note";
 
   const lineRows = invoice.lineItems
     .map((item) => {
@@ -57,6 +58,7 @@ export function renderInvoiceHtml(state: AppState): string {
           <p><strong>No.</strong> ${escapeHtml(invoice.invoiceNumber)}</p>
           <p><strong>Date</strong> ${formatDate(invoice.date)}</p>
           ${invoice.dueDate ? `<p><strong>Due</strong> ${formatDate(invoice.dueDate)}</p>` : ""}
+          ${isCreditNote && invoice.originalInvoiceNumber ? `<p><strong>Credits invoice</strong> ${escapeHtml(invoice.originalInvoiceNumber)}</p>` : ""}
         </div>
       </header>
 

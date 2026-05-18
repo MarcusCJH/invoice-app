@@ -46,6 +46,8 @@ export interface Invoice {
   lineItems: LineItem[];
   customer: Customer;
   discountExGst: number;
+  isCreditNote: boolean;
+  originalInvoiceNumber: string;
 }
 
 export interface AppState {

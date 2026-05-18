@@ -115,3 +115,41 @@ def test_validate_gst_mode_mismatch():
     totals = calculate_totals(invoice.line_items)
     issues = validate_document(profile, invoice, DocumentType.TAX_INVOICE, totals)
     assert any(i["field"] == "profile.gst_registered" for i in issues)
+
+
+def test_credit_note_detected_when_flag_set():
+    profile = BusinessProfile(gst_registered=True, gst_registration_number="123456789A")
+    invoice = Invoice(
+        is_credit_note=True,
+        line_items=[LineItem("Service", Decimal("1"), Decimal("500"))],
+    )
+    totals = calculate_totals(invoice.line_items)
+    assert detect_document_type(profile, invoice, totals) == DocumentType.CREDIT_NOTE
+
+
+def test_credit_note_requires_original_invoice_number():
+    profile = BusinessProfile(name="Biz", address="1 St", gst_registered=False)
+    invoice = Invoice(
+        invoice_number="CN-001",
+        date="2026-05-18",
+        is_credit_note=True,
+        original_invoice_number="",
+        line_items=_pen_items(),
+    )
+    totals = calculate_totals(invoice.line_items)
+    issues = validate_document(profile, invoice, DocumentType.CREDIT_NOTE, totals)
+    assert any(i["field"] == "original_invoice_number" for i in issues)
+
+
+def test_credit_note_valid_with_original_invoice_number():
+    profile = BusinessProfile(name="Biz", address="1 St", gst_registered=False)
+    invoice = Invoice(
+        invoice_number="CN-001",
+        date="2026-05-18",
+        is_credit_note=True,
+        original_invoice_number="INV-2026-0001",
+        line_items=_pen_items(),
+    )
+    totals = calculate_totals(invoice.line_items)
+    issues = validate_document(profile, invoice, DocumentType.CREDIT_NOTE, totals)
+    assert issues == []

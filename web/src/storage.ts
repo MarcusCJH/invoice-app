@@ -39,6 +39,8 @@ export const defaultInvoice = (): Invoice => ({
     gstRegistered: false,
   },
   discountExGst: 0,
+  isCreditNote: false,
+  originalInvoiceNumber: "",
 });
 
 export function defaultState(): AppState {

@@ -26,6 +26,9 @@ def detect_document_type(
     invoice: Invoice,
     totals: TotalsResult,
 ) -> DocumentType:
+    if invoice.is_credit_note:
+        return DocumentType.CREDIT_NOTE
+
     if not profile.gst_registered:
         return DocumentType.INVOICE
 
@@ -68,8 +71,19 @@ def validate_document(
         issues.append({"field": "line_items", "message": "At least one line item is required."})
 
     if doc_type == DocumentType.INVOICE:
-        if profile.gst_registered and profile.gst_registration_number:
-            pass  # optional on simple invoice for non-GST customers
+        return issues
+
+    if doc_type == DocumentType.CREDIT_NOTE:
+        if not invoice.original_invoice_number.strip():
+            issues.append({
+                "field": "original_invoice_number",
+                "message": "Original invoice number is required on a credit note.",
+            })
+        if profile.gst_registered and not profile.gst_registration_number.strip():
+            issues.append({
+                "field": "profile.gst_registration_number",
+                "message": "GST registration number is required for GST documents.",
+            })
         return issues
 
     if not profile.gst_registered:

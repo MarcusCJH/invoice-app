@@ -187,6 +187,18 @@ function renderInvoiceForm(container: HTMLElement): void {
       </div>
     </div>
 
+    <div class="form-grid form-grid--2" style="margin-top:1rem">
+      <div class="field field--full checkbox-row">
+        <input id="inv-credit-note" type="checkbox" ${inv.isCreditNote ? "checked" : ""} />
+        <label for="inv-credit-note">This is a credit note</label>
+      </div>
+      ${inv.isCreditNote ? `
+      <div class="field field--full">
+        <label for="inv-orig-no">Original invoice number</label>
+        <input id="inv-orig-no" type="text" value="${esc(inv.originalInvoiceNumber)}" placeholder="e.g. INV-2026-0001" />
+      </div>` : ""}
+    </div>
+
     <h3 style="margin:1.25rem 0 0.5rem;font-size:0.9rem">Customer</h3>
     <div class="form-grid form-grid--2">
       <div class="field">
@@ -236,6 +248,11 @@ function renderInvoiceForm(container: HTMLElement): void {
   bindInput(q("#cust-addr"), () => inv.customer.address, (v) => { inv.customer.address = v as string; });
   bindInput(q("#inv-discount"), () => inv.discountExGst, (v) => { inv.discountExGst = v as number; });
   bindInput(q("#inv-notes"), () => inv.notes, (v) => { inv.notes = v as string; });
+  bindInput(q("#inv-credit-note"), () => inv.isCreditNote, (v) => { inv.isCreditNote = v as boolean; });
+  const origNoEl = document.querySelector<HTMLInputElement>("#inv-orig-no");
+  if (origNoEl) {
+    bindInput(origNoEl, () => inv.originalInvoiceNumber, (v) => { inv.originalInvoiceNumber = v as string; });
+  }
 
   q("#btn-new-no").addEventListener("click", () => {
     const year = new Date().getFullYear();

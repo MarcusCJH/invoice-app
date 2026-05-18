@@ -56,3 +56,5 @@ class Invoice:
     line_items: list[LineItem] = field(default_factory=list)
     customer: Customer = field(default_factory=Customer)
     discount_ex_gst: Decimal = Decimal("0")
+    is_credit_note: bool = False
+    original_invoice_number: str = ""

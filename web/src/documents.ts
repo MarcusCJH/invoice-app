@@ -12,6 +12,9 @@ export function detectDocumentType(
   invoice: Invoice,
   totals: TotalsResult,
 ): DocumentType {
+  if (invoice.isCreditNote) {
+    return "credit_note";
+  }
   if (!profile.gstRegistered) {
     return "invoice";
   }
@@ -64,6 +67,22 @@ export function validateDocument(
   }
 
   if (docType === "invoice") {
+    return issues;
+  }
+
+  if (docType === "credit_note") {
+    if (!invoice.originalInvoiceNumber.trim()) {
+      issues.push({
+        field: "original_invoice_number",
+        message: "Original invoice number is required on a credit note.",
+      });
+    }
+    if (profile.gstRegistered && !profile.gstRegistrationNumber.trim()) {
+      issues.push({
+        field: "profile.gst_registration_number",
+        message: "GST registration number is required for GST documents.",
+      });
+    }
     return issues;
   }
 

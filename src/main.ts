@@ -20,11 +20,6 @@ type Tab = "profile" | "invoice";
 let state: AppState = loadState();
 let activeTab: Tab = "profile";
 
-function persist(): void {
-  saveState(state);
-  render();
-}
-
 function totals() {
   return calculateTotals(state.invoice.lineItems, {
     discountExGst: state.invoice.discountExGst,
@@ -46,6 +41,52 @@ function validationIssues() {
   );
 }
 
+// Updates only the right-hand preview and reactive labels — does NOT touch the form.
+// Safe to call on every keystroke without destroying focus.
+function syncPreview(): void {
+  const t = totals();
+  const dt = docType();
+  const issues = validationIssues();
+  const label = docTypeLabel(dt);
+
+  const previewEl = document.getElementById("preview-root");
+  if (previewEl) previewEl.innerHTML = renderInvoiceHtml(state);
+
+  const previewBadge = document.getElementById("preview-badge");
+  if (previewBadge) {
+    previewBadge.textContent = label;
+    previewBadge.className = `badge${issues.length ? " badge--warn" : ""}`;
+  }
+
+  const formBadge = document.getElementById("form-doc-type-badge");
+  if (formBadge) formBadge.textContent = label;
+
+  const summaryEl = document.getElementById("inv-summary");
+  if (summaryEl) {
+    summaryEl.textContent = state.profile.gstRegistered
+      ? `GST: ${formatMoney(t.gstAmount)} · Total: ${formatMoney(t.totalInclGst)}`
+      : `Total: ${formatMoney(t.taxableExGst)}`;
+  }
+
+  const validEl = document.getElementById("validation-container");
+  if (validEl) {
+    validEl.innerHTML = issues.length
+      ? `<ul class="validation-list">${issues.map((i) => `<li>${esc(i.message)}</li>`).join("")}</ul>`
+      : "";
+  }
+}
+
+function persist(): void {
+  saveState(state);
+  syncPreview();
+}
+
+// Used for structural changes that alter the form DOM (adding/removing fields or items).
+function persistAndRender(): void {
+  saveState(state);
+  render();
+}
+
 function assignInvoiceNumber(): void {
   const year = new Date().getFullYear();
   if (!state.invoice.invoiceNumber) {
@@ -58,10 +99,12 @@ function assignInvoiceNumber(): void {
   }
 }
 
+// rerender: true forces a full form rebuild (use for checkboxes that show/hide fields).
 function bindInput(
   el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
   get: () => string | number | boolean,
   set: (v: string | number | boolean) => void,
+  rerender = false,
 ): void {
   el.addEventListener("input", () => {
     const raw = el.type === "checkbox" ? (el as HTMLInputElement).checked : el.value;
@@ -74,7 +117,7 @@ function bindInput(
     } else {
       set(raw as string);
     }
-    persist();
+    rerender ? persistAndRender() : persist();
   });
 }
 
@@ -146,10 +189,8 @@ function renderProfileForm(container: HTMLElement): void {
   bindInput(q("#biz-email"), () => p.email, (v) => { p.email = v as string; });
   bindInput(q("#biz-uen"), () => p.uen, (v) => { p.uen = v as string; });
   bindInput(q("#biz-prefix"), () => p.invoicePrefix, (v) => { p.invoicePrefix = v as string; });
-  bindInput(q("#biz-gst-reg"), () => p.gstRegistered, (v) => {
-    p.gstRegistered = v as boolean;
-    persist();
-  });
+  // rerender=true: toggling GST registration shows/hides fields in the form
+  bindInput(q("#biz-gst-reg"), () => p.gstRegistered, (v) => { p.gstRegistered = v as boolean; }, true);
   bindInput(q("#biz-gst-no"), () => p.gstRegistrationNumber, (v) => { p.gstRegistrationNumber = v as string; });
   bindInput(q("#biz-calc"), () => p.calculationMethod, (v) => { p.calculationMethod = v as typeof p.calculationMethod; });
   bindInput(q("#biz-cash-round"), () => p.roundCashToFiveCents, (v) => { p.roundCashToFiveCents = v as boolean; });
@@ -164,7 +205,7 @@ function renderInvoiceForm(container: HTMLElement): void {
   const dt = docType();
 
   container.innerHTML = `
-    <p class="badge">${esc(docTypeLabel(dt))}</p>
+    <p id="form-doc-type-badge" class="badge">${esc(docTypeLabel(dt))}</p>
     <div class="form-grid form-grid--2" style="margin-top: 1rem">
       <div class="field">
         <label for="inv-no">Invoice number</label>
@@ -226,7 +267,7 @@ function renderInvoiceForm(container: HTMLElement): void {
       </div>
       <div class="field">
         <label>Summary</label>
-        <p style="margin:0.35rem 0 0;font-family:var(--mono);font-size:0.85rem">
+        <p id="inv-summary" style="margin:0.35rem 0 0;font-family:var(--mono);font-size:0.85rem">
           ${state.profile.gstRegistered
             ? `GST: ${formatMoney(t.gstAmount)} · Total: ${formatMoney(t.totalInclGst)}`
             : `Total: ${formatMoney(t.taxableExGst)}`}
@@ -248,7 +289,8 @@ function renderInvoiceForm(container: HTMLElement): void {
   bindInput(q("#cust-addr"), () => inv.customer.address, (v) => { inv.customer.address = v as string; });
   bindInput(q("#inv-discount"), () => inv.discountExGst, (v) => { inv.discountExGst = v as number; });
   bindInput(q("#inv-notes"), () => inv.notes, (v) => { inv.notes = v as string; });
-  bindInput(q("#inv-credit-note"), () => inv.isCreditNote, (v) => { inv.isCreditNote = v as boolean; });
+  // rerender=true: toggling credit note shows/hides the original invoice number field
+  bindInput(q("#inv-credit-note"), () => inv.isCreditNote, (v) => { inv.isCreditNote = v as boolean; }, true);
   const origNoEl = document.querySelector<HTMLInputElement>("#inv-orig-no");
   if (origNoEl) {
     bindInput(origNoEl, () => inv.originalInvoiceNumber, (v) => { inv.originalInvoiceNumber = v as string; });
@@ -262,6 +304,8 @@ function renderInvoiceForm(container: HTMLElement): void {
       state.nextSequence,
     );
     state.nextSequence += 1;
+    // Update the input value directly so we don't need a full re-render
+    (q("#inv-no") as HTMLInputElement).value = state.invoice.invoiceNumber;
     persist();
   });
 
@@ -274,7 +318,7 @@ function renderInvoiceForm(container: HTMLElement): void {
       quantity: 1,
       unitPriceExGst: 0,
     });
-    persist();
+    persistAndRender();
   });
 }
 
@@ -319,7 +363,7 @@ function renderLineItems(container: HTMLElement): void {
     row.querySelector("[data-remove]")?.addEventListener("click", () => {
       if (state.invoice.lineItems.length > 1) {
         state.invoice.lineItems = state.invoice.lineItems.filter((l: LineItem) => l.id !== id);
-        persist();
+        persistAndRender();
       }
     });
   });
@@ -364,18 +408,15 @@ function render(): void {
           <button type="button" class="tab ${activeTab === "invoice" ? "tab--active" : ""}" data-tab="invoice">Invoice</button>
         </nav>
         <div class="panel__body" id="form-root"></div>
-        ${issues.length ? `
-        <div class="panel__body" style="padding-top:0">
-          <ul class="validation-list">
-            ${issues.map((i) => `<li>${esc(i.message)}</li>`).join("")}
-          </ul>
-        </div>` : ""}
+        <div id="validation-container" class="panel__body" style="padding-top:0">
+          ${issues.length ? `<ul class="validation-list">${issues.map((i) => `<li>${esc(i.message)}</li>`).join("")}</ul>` : ""}
+        </div>
       </section>
 
       <section class="panel">
         <div class="panel__header no-print">
           <h2>Preview</h2>
-          <span class="badge ${issues.length ? "badge--warn" : ""}">${esc(docTypeLabel(docType()))}</span>
+          <span id="preview-badge" class="badge ${issues.length ? "badge--warn" : ""}">${esc(docTypeLabel(docType()))}</span>
         </div>
         <div class="preview-pane" id="preview-root">
           ${renderInvoiceHtml(state)}
@@ -413,7 +454,7 @@ function render(): void {
     if (!file) return;
     const text = await file.text();
     state = importJson(text);
-    persist();
+    persistAndRender();
   });
 }
 

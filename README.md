@@ -1,43 +1,34 @@
 # SG Invoice
 
-A Singapore-focused invoice web app for small and home-based businesses. Create standard invoices, tax invoices, simplified tax invoices, and receipts with GST calculations aligned to IRAS guidance. Runs entirely in the browser — ideal for [GitHub Pages](https://pages.github.com/) hosting.
+A Singapore-focused invoice web app for small and home-based businesses. Create standard invoices, tax invoices, simplified tax invoices, receipts, and credit notes with GST calculations aligned to IRAS guidance. Runs entirely in the browser — ideal for [GitHub Pages](https://pages.github.com/) hosting.
 
 ## Features
 
-- **Business profile** — name, address, UEN, GST registration, bank / PayNow details
-- **GST modes** — not GST-registered (simple invoice) or GST-registered (tax invoice / simplified / receipt)
-- **Auto document type** — picks the right layout based on your GST status and customer
-- **Line items** — quantity, unit price (ex GST when registered), discounts
-- **GST @ 9%** — per-line or on-subtotal calculation (IRAS-accepted methods)
+- **Business profile** — name, address, UEN, GST registration, bank / PayNow details, logo
+- **GST modes** — not GST-registered (standard invoice) or GST-registered (tax invoice / simplified / receipt)
+- **Auto document type** — picks the right layout based on GST status and customer
+- **Credit notes** — reference an original invoice number, flip amounts to negative
+- **Line items** — quantity, unit price (ex-GST when registered), per-line discounts
+- **GST @ 9%** — per-line or on-subtotal calculation (both IRAS-accepted)
+- **PayNow QR codes** — generated from UEN or mobile number, pre-filled with invoice total
+- **Dark / light theme** — persisted in `localStorage`
 - **Live preview** — print or save as PDF via the browser
-- **Local storage** — data stays on your device; export/import JSON backup
-- **Python core** — `invoice_core` package with `pytest` for GST logic (UV-managed)
+- **Local storage** — data stays on your device; export / import JSON backup
 
 ## Quick start
 
-### Web app (local)
-
 ```bash
-cd web
 npm install
-npm run dev
+npm run dev      # dev server with hot reload
 ```
 
 Open http://localhost:5173
 
-### Python tests
-
-```bash
-uv sync --group dev
-uv run pytest
-```
-
 ### Build for GitHub Pages
 
 ```bash
-cd web
 # Replace invoice-app with your repository name
-set VITE_BASE=/invoice-app/   # Windows CMD
+$env:VITE_BASE="/invoice-app/"   # PowerShell
 # export VITE_BASE=/invoice-app/   # macOS/Linux
 npm run build
 ```
@@ -68,7 +59,8 @@ This app helps with **record-keeping and formatting**. It is not tax or legal ad
 | Not GST-registered | Standard **invoice** |
 | GST-registered, GST-registered customer, total > $1,000 incl. GST | Full **tax invoice** |
 | GST-registered, GST-registered customer, total ≤ $1,000 incl. GST | **Simplified tax invoice** |
-| GST-registered, customer not GST-registered | **Receipt** (with “Price payable includes GST”) |
+| GST-registered, customer not GST-registered | **Receipt** (with "Price payable includes GST") |
+| Reversing a previously issued invoice | **Credit note** |
 
 **GST registration** is generally required when taxable turnover exceeds **$1 million** (see [IRAS — Do I need to register for GST](https://www.iras.gov.sg/taxes/goods-services-tax-(gst)/gst-registration-deregistration/do-i-need-to-register-for-gst)).
 
@@ -83,21 +75,20 @@ This app helps with **record-keeping and formatting**. It is not tax or legal ad
 
 ```
 invoice-app/
-├── src/invoice_core/   # Python: GST math, document rules
-├── tests/              # pytest
-├── scripts/            # optional local CLI
-├── web/                # Vite + TypeScript SPA
+├── src/                # TypeScript source
+│   ├── types.ts        # interfaces: LineItem, BusinessProfile, Customer, Invoice, AppState
+│   ├── gst.ts          # calculateTotals() — IRAS-aligned GST rounding
+│   ├── documents.ts    # detectDocumentType() / validateDocument()
+│   ├── paynow.ts       # EMVCo TLV PayNow QR payload builder
+│   ├── format.ts       # formatMoney(), formatDate(), escapeHtml()
+│   ├── storage.ts      # localStorage persistence + JSON export/import
+│   ├── main.ts         # vanilla DOM rendering, state management
+│   └── templates/
+│       └── render.ts   # printable invoice HTML generator
 ├── docs/               # built static site (GitHub Pages)
-└── pyproject.toml      # UV project config
+├── package.json
+└── vite.config.ts
 ```
-
-## Optional CLI
-
-```bash
-uv run python scripts/export_pdf.py backup.json
-```
-
-Install `reportlab` for future PDF enhancements: `uv sync --extra cli`
 
 ## Privacy
 
@@ -105,4 +96,4 @@ Invoice data is stored in your browser (`localStorage`) only. The hosted app on 
 
 ## License
 
-MIT (add a LICENSE file if you publish the repo.)
+MIT

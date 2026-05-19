@@ -226,7 +226,7 @@ function renderForm(container: HTMLElement): void {
         </div>
         <div class="field field--full">
           <label for="biz-address">Address</label>
-          <textarea id="biz-address" rows="3">${esc(p.address)}</textarea>
+          <textarea id="biz-address" rows="2">${esc(p.address)}</textarea>
         </div>
         <div class="field">
           <label for="biz-phone">Phone</label>
@@ -339,7 +339,7 @@ function renderForm(container: HTMLElement): void {
         </div>
         <div class="field field--full">
           <label for="cust-addr">Address</label>
-          <textarea id="cust-addr" rows="3">${esc(inv.customer.address)}</textarea>
+          <textarea id="cust-addr" rows="2">${esc(inv.customer.address)}</textarea>
         </div>
       </div>
     </div>
@@ -455,7 +455,7 @@ function renderLineItems(container: HTMLElement): void {
     <div class="line-item" data-id="${item.id}">
       <div class="field">
         <label>Description</label>
-        <textarea data-field="desc" rows="2" style="resize:vertical">${esc(item.description)}</textarea>
+        <textarea data-field="desc" rows="2">${esc(item.description)}</textarea>
       </div>
       <div class="field">
         <label>Qty</label>

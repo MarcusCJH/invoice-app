@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://www.marcuscjh.com/invoice-app/sitemap.xml

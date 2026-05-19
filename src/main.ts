@@ -17,7 +17,6 @@ import {
 import { docTypeLabel, renderInvoiceHtml } from "./templates/render";
 import type { AppState, LineItem } from "./types";
 
-// Initialise theme before first paint to avoid flash.
 function initTheme(): void {
   const stored = localStorage.getItem("theme");
   const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -35,6 +34,7 @@ function toggleTheme(): void {
 initTheme();
 
 let state: AppState = loadState();
+let activeFormTab = "business";
 
 function totals() {
   return calculateTotals(state.invoice.lineItems, {
@@ -57,8 +57,6 @@ function validationIssues() {
   );
 }
 
-// Pre-computes QR data URLs then rebuilds the preview HTML in one shot.
-// Using <img src="data:..."> avoids canvas elements being destroyed by innerHTML replacement.
 async function syncPreview(): Promise<void> {
   const t = totals();
   const dt = docType();
@@ -92,6 +90,12 @@ async function syncPreview(): Promise<void> {
   if (previewBadge) {
     previewBadge.textContent = label;
     previewBadge.className = `badge${issues.length ? " badge--warn" : ""}`;
+  }
+
+  const previewTotal = document.getElementById("preview-total");
+  if (previewTotal) {
+    const amount = state.profile.gstRegistered ? t.totalInclGst : t.taxableExGst;
+    previewTotal.textContent = formatMoney(amount);
   }
 
   const formBadge = document.getElementById("form-doc-type-badge");
@@ -134,8 +138,6 @@ function assignInvoiceNumber(): void {
   }
 }
 
-// Resizes an image file to max 400px and returns a PNG data URL.
-// SVG files are stored as-is to preserve vector quality.
 async function readLogoDataUrl(file: File): Promise<string> {
   if (file.type === "image/svg+xml") {
     return new Promise((resolve, reject) => {
@@ -165,7 +167,6 @@ async function readLogoDataUrl(file: File): Promise<string> {
   });
 }
 
-// rerender: true forces a full form rebuild (use for checkboxes that show/hide fields).
 function bindInput(
   el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
   get: () => string | number | boolean,
@@ -187,6 +188,14 @@ function bindInput(
   });
 }
 
+function tab(id: string) {
+  return `form-tab${activeFormTab === id ? " form-tab--active" : ""}`;
+}
+
+function section(id: string) {
+  return `form-section${activeFormTab === id ? " form-section--active" : ""}`;
+}
+
 function renderForm(container: HTMLElement): void {
   const p = state.profile;
   const inv = state.invoice;
@@ -194,164 +203,167 @@ function renderForm(container: HTMLElement): void {
   const dt = docType();
 
   container.innerHTML = `
-    <h3 class="form-section-title">Your Business</h3>
-    <div class="logo-field">
-      ${p.logo
-        ? `<img src="${p.logo}" class="logo-preview" alt="Logo" />`
-        : `<div class="logo-placeholder"></div>`}
-      <div>
-        <div style="display:flex;gap:0.4rem;margin-bottom:0.3rem">
-          <label class="btn btn--sm" style="cursor:pointer">
-            ${p.logo ? "Change logo" : "Upload logo"}
-            <input type="file" id="logo-input" accept="image/*" class="hidden" />
-          </label>
-          ${p.logo ? `<button type="button" class="btn btn--sm btn--danger" id="btn-remove-logo">Remove</button>` : ""}
-        </div>
-        <p class="logo-hint">PNG, JPG or SVG · shown on the invoice</p>
-      </div>
-    </div>
-    <div class="form-grid form-grid--2">
-      <div class="field field--full">
-        <label for="biz-name">Business / trading name</label>
-        <input id="biz-name" type="text" value="${esc(p.name)}" />
-      </div>
-      <div class="field field--full">
-        <label for="biz-address">Address</label>
-        <textarea id="biz-address" rows="3">${esc(p.address)}</textarea>
-      </div>
-      <div class="field">
-        <label for="biz-phone">Phone</label>
-        <input id="biz-phone" type="text" value="${esc(p.phone)}" />
-      </div>
-      <div class="field">
-        <label for="biz-email">Email</label>
-        <input id="biz-email" type="email" value="${esc(p.email)}" />
-      </div>
-      <div class="field">
-        <label for="biz-uen">UEN</label>
-        <input id="biz-uen" type="text" value="${esc(p.uen)}" placeholder="e.g. 123456789A" />
-      </div>
-      <div class="field checkbox-row">
-        <input id="biz-paynow-uen" type="checkbox" ${p.paynowUen ? "checked" : ""} />
-        <label for="biz-paynow-uen">Show PayNow QR (UEN)</label>
-      </div>
-      <div class="field">
-        <label for="biz-prefix">Invoice prefix</label>
-        <input id="biz-prefix" type="text" value="${esc(p.invoicePrefix)}" />
-      </div>
-      <div class="field field--full checkbox-row">
-        <input id="biz-gst-reg" type="checkbox" ${p.gstRegistered ? "checked" : ""} />
-        <label for="biz-gst-reg">GST-registered business</label>
-      </div>
-      ${p.gstRegistered ? `
-      <div class="field">
-        <label for="biz-gst-no">GST registration number</label>
-        <input id="biz-gst-no" type="text" value="${esc(p.gstRegistrationNumber)}" />
-      </div>
-      <div class="field">
-        <label for="biz-calc">GST calculation method</label>
-        <select id="biz-calc">
-          <option value="per_line" ${p.calculationMethod === "per_line" ? "selected" : ""}>Per line item (9% each)</option>
-          <option value="on_subtotal" ${p.calculationMethod === "on_subtotal" ? "selected" : ""}>On subtotal (9% once)</option>
-        </select>
-      </div>
-      <div class="field checkbox-row">
-        <input id="biz-cash-round" type="checkbox" ${p.roundCashToFiveCents ? "checked" : ""} />
-        <label for="biz-cash-round">Round total to nearest 5¢ (cash)</label>
-      </div>` : ""}
-      <div class="field">
-        <label for="biz-bank">Bank name</label>
-        <input id="biz-bank" type="text" value="${esc(p.bankName)}" />
-      </div>
-      <div class="field">
-        <label for="biz-account">Bank account</label>
-        <input id="biz-account" type="text" value="${esc(p.bankAccount)}" />
-      </div>
-      <div class="field">
-        <label for="biz-paynow">PayNow mobile</label>
-        <input id="biz-paynow" type="text" value="${esc(p.paynow)}" placeholder="e.g. 91234567" />
-      </div>
-      <div class="field checkbox-row">
-        <input id="biz-paynow-mobile" type="checkbox" ${p.paynowMobile ? "checked" : ""} />
-        <label for="biz-paynow-mobile">Show PayNow QR (mobile)</label>
-      </div>
-      <div class="field checkbox-row">
-        <input id="biz-cod" type="checkbox" ${p.cashOnDelivery ? "checked" : ""} />
-        <label for="biz-cod">Cash on delivery</label>
-      </div>
-    </div>
-
-    <hr class="form-divider" />
-
-    <h3 class="form-section-title">Invoice</h3>
-    <p id="form-doc-type-badge" class="badge">${esc(docTypeLabel(dt))}</p>
-    <div class="form-grid form-grid--2" style="margin-top:0.75rem">
-      <div class="field">
-        <label for="inv-no">Invoice number</label>
-        <div style="display:flex;gap:0.5rem">
-          <input id="inv-no" type="text" value="${esc(inv.invoiceNumber)}" style="flex:1" />
-          <button type="button" class="btn btn--sm" id="btn-new-no">New no.</button>
+    <div class="${section("business")}" data-section="business">
+      <div class="logo-field">
+        ${p.logo
+          ? `<img src="${p.logo}" class="logo-preview" alt="Logo" />`
+          : `<div class="logo-placeholder"></div>`}
+        <div>
+          <div style="display:flex;gap:0.4rem;margin-bottom:0.3rem">
+            <label class="btn btn--sm" style="cursor:pointer">
+              ${p.logo ? "Change logo" : "Upload logo"}
+              <input type="file" id="logo-input" accept="image/*" class="hidden" />
+            </label>
+            ${p.logo ? `<button type="button" class="btn btn--sm btn--danger" id="btn-remove-logo">Remove</button>` : ""}
+          </div>
+          <p class="logo-hint">PNG, JPG or SVG · shown on the invoice</p>
         </div>
       </div>
-      <div class="field">
-        <label for="inv-date">Date</label>
-        <input id="inv-date" type="date" value="${esc(inv.date)}" />
+      <div class="form-grid form-grid--2">
+        <div class="field field--full">
+          <label for="biz-name">Business / trading name</label>
+          <input id="biz-name" type="text" value="${esc(p.name)}" />
+        </div>
+        <div class="field field--full">
+          <label for="biz-address">Address</label>
+          <textarea id="biz-address" rows="3">${esc(p.address)}</textarea>
+        </div>
+        <div class="field">
+          <label for="biz-phone">Phone</label>
+          <input id="biz-phone" type="text" value="${esc(p.phone)}" />
+        </div>
+        <div class="field">
+          <label for="biz-email">Email</label>
+          <input id="biz-email" type="email" value="${esc(p.email)}" />
+        </div>
+        <div class="field">
+          <label for="biz-uen">UEN</label>
+          <input id="biz-uen" type="text" value="${esc(p.uen)}" placeholder="e.g. 123456789A" />
+        </div>
+        <div class="field checkbox-row" style="align-self:end;padding-bottom:0.35rem">
+          <input id="biz-paynow-uen" type="checkbox" ${p.paynowUen ? "checked" : ""} />
+          <label for="biz-paynow-uen">Show PayNow QR (UEN)</label>
+        </div>
+        <div class="field">
+          <label for="biz-prefix">Invoice prefix</label>
+          <input id="biz-prefix" type="text" value="${esc(p.invoicePrefix)}" />
+        </div>
+        <div class="field field--full checkbox-row">
+          <input id="biz-gst-reg" type="checkbox" ${p.gstRegistered ? "checked" : ""} />
+          <label for="biz-gst-reg">GST-registered business</label>
+        </div>
+        ${p.gstRegistered ? `
+        <div class="field">
+          <label for="biz-gst-no">GST registration number</label>
+          <input id="biz-gst-no" type="text" value="${esc(p.gstRegistrationNumber)}" />
+        </div>
+        <div class="field">
+          <label for="biz-calc">GST calculation method</label>
+          <select id="biz-calc">
+            <option value="per_line" ${p.calculationMethod === "per_line" ? "selected" : ""}>Per line item (9% each)</option>
+            <option value="on_subtotal" ${p.calculationMethod === "on_subtotal" ? "selected" : ""}>On subtotal (9% once)</option>
+          </select>
+        </div>
+        <div class="field checkbox-row">
+          <input id="biz-cash-round" type="checkbox" ${p.roundCashToFiveCents ? "checked" : ""} />
+          <label for="biz-cash-round">Round total to nearest 5¢ (cash)</label>
+        </div>` : ""}
+        <div class="field">
+          <label for="biz-bank">Bank name</label>
+          <input id="biz-bank" type="text" value="${esc(p.bankName)}" />
+        </div>
+        <div class="field">
+          <label for="biz-account">Bank account</label>
+          <input id="biz-account" type="text" value="${esc(p.bankAccount)}" />
+        </div>
+        <div class="field">
+          <label for="biz-paynow">PayNow mobile</label>
+          <input id="biz-paynow" type="text" value="${esc(p.paynow)}" placeholder="e.g. 91234567" />
+        </div>
+        <div class="field checkbox-row">
+          <input id="biz-paynow-mobile" type="checkbox" ${p.paynowMobile ? "checked" : ""} />
+          <label for="biz-paynow-mobile">Show PayNow QR (mobile)</label>
+        </div>
+        <div class="field checkbox-row">
+          <input id="biz-cod" type="checkbox" ${p.cashOnDelivery ? "checked" : ""} />
+          <label for="biz-cod">Cash on delivery</label>
+        </div>
       </div>
-      <div class="field">
-        <label for="inv-due">Due date</label>
-        <input id="inv-due" type="date" value="${esc(inv.dueDate)}" />
-      </div>
-      <div class="field field--full">
-        <label for="inv-terms">Payment terms</label>
-        <input id="inv-terms" type="text" value="${esc(inv.paymentTerms)}" />
-      </div>
-      <div class="field field--full checkbox-row">
-        <input id="inv-credit-note" type="checkbox" ${inv.isCreditNote ? "checked" : ""} />
-        <label for="inv-credit-note">This is a credit note</label>
-      </div>
-      ${inv.isCreditNote ? `
-      <div class="field field--full">
-        <label for="inv-orig-no">Original invoice number</label>
-        <input id="inv-orig-no" type="text" value="${esc(inv.originalInvoiceNumber)}" placeholder="e.g. INV-2026-0001" />
-      </div>` : ""}
     </div>
 
-    <h3 class="form-section-title" style="margin-top:1.25rem">Customer</h3>
-    <div class="form-grid form-grid--2">
-      <div class="field">
-        <label for="cust-name">Name</label>
-        <input id="cust-name" type="text" value="${esc(inv.customer.name)}" />
+    <div class="${section("invoice")}" data-section="invoice">
+      <div class="invoice-tab-header">
+        <p id="form-doc-type-badge" class="badge">${esc(docTypeLabel(dt))}</p>
       </div>
-      <div class="field checkbox-row" style="align-self:end">
-        <input id="cust-gst" type="checkbox" ${inv.customer.gstRegistered ? "checked" : ""} ${!p.gstRegistered ? "disabled" : ""} />
-        <label for="cust-gst">Customer is GST-registered</label>
-      </div>
-      <div class="field field--full">
-        <label for="cust-addr">Address</label>
-        <textarea id="cust-addr" rows="2">${esc(inv.customer.address)}</textarea>
+      <div class="form-grid form-grid--2">
+        <div class="field">
+          <label for="inv-no">Invoice number</label>
+          <div style="display:flex;gap:0.5rem">
+            <input id="inv-no" type="text" value="${esc(inv.invoiceNumber)}" style="flex:1" />
+            <button type="button" class="btn btn--sm" id="btn-new-no">New no.</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="inv-date">Date</label>
+          <input id="inv-date" type="date" value="${esc(inv.date)}" />
+        </div>
+        <div class="field">
+          <label for="inv-due">Due date</label>
+          <input id="inv-due" type="date" value="${esc(inv.dueDate)}" />
+        </div>
+        <div class="field field--full">
+          <label for="inv-terms">Payment terms</label>
+          <input id="inv-terms" type="text" value="${esc(inv.paymentTerms)}" />
+        </div>
+        <div class="field field--full checkbox-row">
+          <input id="inv-credit-note" type="checkbox" ${inv.isCreditNote ? "checked" : ""} />
+          <label for="inv-credit-note">This is a credit note</label>
+        </div>
+        ${inv.isCreditNote ? `
+        <div class="field field--full">
+          <label for="inv-orig-no">Original invoice number</label>
+          <input id="inv-orig-no" type="text" value="${esc(inv.originalInvoiceNumber)}" placeholder="e.g. INV-2026-0001" />
+        </div>` : ""}
       </div>
     </div>
 
-    <h3 class="form-section-title" style="margin-top:1.25rem">Line items</h3>
-    <div class="line-items" id="line-items"></div>
-    <button type="button" class="btn btn--sm" id="btn-add-line" style="margin-top:0.5rem">+ Add line</button>
+    <div class="${section("customer")}" data-section="customer">
+      <div class="form-grid form-grid--2">
+        <div class="field">
+          <label for="cust-name">Name</label>
+          <input id="cust-name" type="text" value="${esc(inv.customer.name)}" />
+        </div>
+        <div class="field checkbox-row" style="align-self:end;padding-bottom:0.35rem">
+          <input id="cust-gst" type="checkbox" ${inv.customer.gstRegistered ? "checked" : ""} ${!p.gstRegistered ? "disabled" : ""} />
+          <label for="cust-gst">Customer is GST-registered</label>
+        </div>
+        <div class="field field--full">
+          <label for="cust-addr">Address</label>
+          <textarea id="cust-addr" rows="3">${esc(inv.customer.address)}</textarea>
+        </div>
+      </div>
+    </div>
 
-    <div class="form-grid form-grid--2" style="margin-top:1rem">
-      <div class="field">
-        <label for="inv-discount">Discount (ex GST)</label>
-        <input id="inv-discount" type="number" min="0" step="0.01" value="${inv.discountExGst}" />
-      </div>
-      <div class="field">
-        <label>Summary</label>
-        <p id="inv-summary" style="margin:0.35rem 0 0;font-family:var(--mono);font-size:0.85rem">
-          ${state.profile.gstRegistered
-            ? `GST: ${formatMoney(t.gstAmount)} · Total: ${formatMoney(t.totalInclGst)}`
-            : `Total: ${formatMoney(t.taxableExGst)}`}
-        </p>
-      </div>
-      <div class="field field--full">
-        <label for="inv-notes">Notes</label>
-        <textarea id="inv-notes" rows="2">${esc(inv.notes)}</textarea>
+    <div class="${section("items")}" data-section="items">
+      <div class="line-items" id="line-items"></div>
+      <button type="button" class="btn btn--sm add-line-btn" id="btn-add-line">+ Add line item</button>
+      <div class="form-grid form-grid--2" style="margin-top:1.25rem">
+        <div class="field">
+          <label for="inv-discount">Discount (ex GST)</label>
+          <input id="inv-discount" type="number" min="0" step="0.01" value="${inv.discountExGst}" />
+        </div>
+        <div class="field">
+          <label>Summary</label>
+          <p id="inv-summary" style="margin:0.35rem 0 0;font-family:var(--mono);font-size:0.85rem">
+            ${state.profile.gstRegistered
+              ? `GST: ${formatMoney(t.gstAmount)} · Total: ${formatMoney(t.totalInclGst)}`
+              : `Total: ${formatMoney(t.taxableExGst)}`}
+          </p>
+        </div>
+        <div class="field field--full">
+          <label for="inv-notes">Notes</label>
+          <textarea id="inv-notes" rows="2">${esc(inv.notes)}</textarea>
+        </div>
       </div>
     </div>
   `;
@@ -453,7 +465,7 @@ function renderLineItems(container: HTMLElement): void {
         <label>Unit price ${state.profile.gstRegistered ? "(ex GST)" : ""}</label>
         <input type="number" data-field="price" min="0" step="0.01" value="${item.unitPriceExGst}" />
       </div>
-      <button type="button" class="btn btn--sm btn--danger" data-remove="${i}" ${state.invoice.lineItems.length <= 1 ? "disabled" : ""}>Remove</button>
+      <button type="button" class="btn btn--sm btn--danger line-remove-btn" data-remove="${i}" ${state.invoice.lineItems.length <= 1 ? "disabled" : ""}>✕</button>
     </div>`,
     )
     .join("");
@@ -501,24 +513,42 @@ function render(): void {
 
   root.innerHTML = `
     <header class="app-header no-print">
-      <div>
-        <h1>Invoice App</h1>
+      <div class="header-brand">
+        <div class="header-mark" aria-hidden="true"></div>
+        <div>
+          <h1>Invoice App</h1>
+          <p class="header-tagline">Singapore · GST-compliant</p>
+        </div>
       </div>
       <div class="header-actions">
-        <button type="button" class="btn" id="btn-theme">${document.documentElement.dataset.theme === "dark" ? "☀ Light" : "☾ Dark"}</button>
-        <button type="button" class="btn" id="btn-export">Export JSON</button>
-        <label class="btn" style="cursor:pointer">
-          Import JSON
+        <button type="button" class="btn btn--ghost btn--sm" id="btn-theme">${document.documentElement.dataset.theme === "dark" ? "☀ Light" : "☾ Dark"}</button>
+        <button type="button" class="btn btn--sm" id="btn-export">Export</button>
+        <label class="btn btn--sm" style="cursor:pointer">
+          Import
           <input type="file" id="btn-import" accept=".json" class="hidden" />
         </label>
-        <button type="button" class="btn btn--primary" id="btn-print">Print / PDF</button>
+        <button type="button" class="btn btn--primary btn--sm" id="btn-print">⎙ Print / PDF</button>
       </div>
     </header>
 
     <div class="layout layout--split">
       <section class="panel">
+        <div class="form-tab-bar no-print">
+          <button class="${tab("business")}" data-tab="business">
+            <span class="form-tab-num">01</span>Business
+          </button>
+          <button class="${tab("invoice")}" data-tab="invoice">
+            <span class="form-tab-num">02</span>Invoice
+          </button>
+          <button class="${tab("customer")}" data-tab="customer">
+            <span class="form-tab-num">03</span>Customer
+          </button>
+          <button class="${tab("items")}" data-tab="items">
+            <span class="form-tab-num">04</span>Items
+          </button>
+        </div>
         <div class="panel__body" id="form-root"></div>
-        <div id="validation-container" class="panel__body" style="padding-top:0">
+        <div id="validation-container" style="padding:0 1.375rem 1.375rem">
           ${issues.length ? `<ul class="validation-list">${issues.map((i) => `<li>${esc(i.message)}</li>`).join("")}</ul>` : ""}
         </div>
       </section>
@@ -526,7 +556,10 @@ function render(): void {
       <section class="panel">
         <div class="panel__header no-print">
           <h2>Preview</h2>
-          <span id="preview-badge" class="badge ${issues.length ? "badge--warn" : ""}">${esc(docTypeLabel(docType()))}</span>
+          <div class="panel-header-right">
+            <span id="preview-total" class="preview-total"></span>
+            <span id="preview-badge" class="badge ${issues.length ? "badge--warn" : ""}">${esc(docTypeLabel(docType()))}</span>
+          </div>
         </div>
         <div class="preview-pane" id="preview-root"></div>
       </section>
@@ -539,6 +572,17 @@ function render(): void {
 
   if (!state.invoice.invoiceNumber) assignInvoiceNumber();
   renderForm(q("#form-root"));
+
+  // Tab switching — no re-render needed, pure CSS show/hide
+  document.querySelectorAll<HTMLButtonElement>(".form-tab[data-tab]").forEach((tabBtn) => {
+    tabBtn.addEventListener("click", () => {
+      activeFormTab = tabBtn.dataset.tab!;
+      document.querySelectorAll<HTMLButtonElement>(".form-tab[data-tab]").forEach((t) =>
+        t.classList.toggle("form-tab--active", t.dataset.tab === activeFormTab));
+      document.querySelectorAll<HTMLElement>(".form-section").forEach((s) =>
+        s.classList.toggle("form-section--active", s.dataset.section === activeFormTab));
+    });
+  });
 
   q("#btn-theme").addEventListener("click", toggleTheme);
   q("#btn-print").addEventListener("click", () => window.print());

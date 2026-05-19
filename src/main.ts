@@ -443,7 +443,7 @@ function renderLineItems(container: HTMLElement): void {
     <div class="line-item" data-id="${item.id}">
       <div class="field">
         <label>Description</label>
-        <input type="text" data-field="desc" value="${esc(item.description)}" />
+        <textarea data-field="desc" rows="2" style="resize:vertical">${esc(item.description)}</textarea>
       </div>
       <div class="field">
         <label>Qty</label>
@@ -463,7 +463,7 @@ function renderLineItems(container: HTMLElement): void {
     const item = state.invoice.lineItems.find((l: LineItem) => l.id === id)!;
 
     row.querySelector('[data-field="desc"]')?.addEventListener("input", (e) => {
-      item.description = (e.target as HTMLInputElement).value;
+      item.description = (e.target as HTMLTextAreaElement).value;
       persist();
     });
     row.querySelector('[data-field="qty"]')?.addEventListener("input", (e) => {

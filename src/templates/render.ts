@@ -30,14 +30,14 @@ export function renderInvoiceHtml(state: AppState, qrImages: { uen?: string; mob
       if (isSimplified || isReceipt) {
         return `
         <tr>
-          <td>${escapeHtml(item.description || "—")}</td>
+          <td>${escapeHtml(item.description || "—").replace(/\n/g, "<br>")}</td>
           <td class="num">${item.quantity}</td>
           <td class="num">${formatMoney(incl, invoice.currency)}</td>
         </tr>`;
       }
       return `
         <tr>
-          <td>${escapeHtml(item.description || "—")}</td>
+          <td>${escapeHtml(item.description || "—").replace(/\n/g, "<br>")}</td>
           <td class="num">${item.quantity}</td>
           <td class="num">${formatMoney(item.unitPriceExGst, invoice.currency)}</td>
           ${showGst ? `<td class="num">${formatMoney(gst, invoice.currency)}</td>` : ""}

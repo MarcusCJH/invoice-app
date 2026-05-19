@@ -1,21 +1,12 @@
 import "./styles.css";
 import QRCode from "qrcode";
-import {
-  detectDocumentType,
-  validateDocument,
-} from "./documents";
+import { detectDocumentType, validateDocument } from "./documents";
 import { calculateTotals } from "./gst";
-import { formatMoney } from "./format";
+import { escapeHtml, formatMoney } from "./format";
 import { buildPayNowPayload, isMobileNumber } from "./paynow";
-import {
-  exportJson,
-  importJson,
-  loadState,
-  nextInvoiceNumber,
-  saveState,
-} from "./storage";
+import { exportJson, importJson, loadState, nextInvoiceNumber, saveState } from "./storage";
 import { docTypeLabel, renderInvoiceHtml } from "./templates/render";
-import type { AppState, LineItem } from "./types";
+import type { AppState, BusinessProfile, DocumentType, Invoice, LineItem, TotalsResult } from "./types";
 
 function initTheme(): void {
   const stored = localStorage.getItem("theme");
@@ -49,12 +40,7 @@ function docType() {
 }
 
 function validationIssues() {
-  return validateDocument(
-    state.profile,
-    state.invoice,
-    docType(),
-    totals(),
-  );
+  return validateDocument(state.profile, state.invoice, docType(), totals());
 }
 
 async function syncPreview(): Promise<void> {
@@ -94,8 +80,7 @@ async function syncPreview(): Promise<void> {
 
   const previewTotal = document.getElementById("preview-total");
   if (previewTotal) {
-    const amount = state.profile.gstRegistered ? t.totalInclGst : t.taxableExGst;
-    previewTotal.textContent = formatMoney(amount);
+    previewTotal.textContent = formatMoney(state.profile.gstRegistered ? t.totalInclGst : t.taxableExGst);
   }
 
   const formBadge = document.getElementById("form-doc-type-badge");
@@ -111,7 +96,7 @@ async function syncPreview(): Promise<void> {
   const validEl = document.getElementById("validation-container");
   if (validEl) {
     validEl.innerHTML = issues.length
-      ? `<ul class="validation-list">${issues.map((i) => `<li>${esc(i.message)}</li>`).join("")}</ul>`
+      ? `<ul class="validation-list">${issues.map((i) => `<li>${escapeHtml(i.message)}</li>`).join("")}</ul>`
       : "";
   }
 }
@@ -127,11 +112,10 @@ function persistAndRender(): void {
 }
 
 function assignInvoiceNumber(): void {
-  const year = new Date().getFullYear();
   if (!state.invoice.invoiceNumber) {
     state.invoice.invoiceNumber = nextInvoiceNumber(
       state.profile.invoicePrefix,
-      year,
+      new Date().getFullYear(),
       state.nextSequence,
     );
     state.nextSequence += 1;
@@ -174,40 +158,36 @@ function bindInput(
   rerender = false,
 ): void {
   el.addEventListener("input", () => {
-    const raw = el.type === "checkbox" ? (el as HTMLInputElement).checked : el.value;
-    if (el.type === "number") {
-      set(parseFloat(el.value) || 0);
-    } else if (typeof get() === "boolean") {
-      set(raw as boolean);
-    } else if (typeof get() === "number") {
+    if (el.type === "checkbox") {
+      set((el as HTMLInputElement).checked);
+    } else if (el.type === "number" || typeof get() === "number") {
       set(parseFloat(el.value) || 0);
     } else {
-      set(raw as string);
+      set(el.value);
     }
     rerender ? persistAndRender() : persist();
   });
 }
 
-function tab(id: string) {
+function q<T extends HTMLElement = HTMLElement>(sel: string): T {
+  return document.querySelector(sel) as T;
+}
+
+function tabClass(id: string): string {
   return `form-tab${activeFormTab === id ? " form-tab--active" : ""}`;
 }
 
-function section(id: string) {
+function sectionClass(id: string): string {
   return `form-section${activeFormTab === id ? " form-section--active" : ""}`;
 }
 
-function renderForm(container: HTMLElement): void {
-  const p = state.profile;
-  const inv = state.invoice;
-  const t = totals();
-  const dt = docType();
+// ── Section HTML generators ──────────────────────────────────────────────────
 
-  container.innerHTML = `
-    <div class="${section("business")}" data-section="business">
+function businessSectionHtml(p: BusinessProfile): string {
+  return `
+    <div class="${sectionClass("business")}" data-section="business">
       <div class="logo-field">
-        ${p.logo
-          ? `<img src="${p.logo}" class="logo-preview" alt="Logo" />`
-          : `<div class="logo-placeholder"></div>`}
+        ${p.logo ? `<img src="${p.logo}" class="logo-preview" alt="Logo" />` : `<div class="logo-placeholder"></div>`}
         <div>
           <div style="display:flex;gap:0.4rem;margin-bottom:0.3rem">
             <label class="btn btn--sm" style="cursor:pointer">
@@ -222,23 +202,23 @@ function renderForm(container: HTMLElement): void {
       <div class="form-grid form-grid--2">
         <div class="field field--full">
           <label for="biz-name">Business / trading name</label>
-          <input id="biz-name" type="text" value="${esc(p.name)}" />
+          <input id="biz-name" type="text" value="${escapeHtml(p.name)}" />
         </div>
         <div class="field field--full">
           <label for="biz-address">Address</label>
-          <textarea id="biz-address" rows="2">${esc(p.address)}</textarea>
+          <textarea id="biz-address" rows="2">${escapeHtml(p.address)}</textarea>
         </div>
         <div class="field">
           <label for="biz-phone">Phone</label>
-          <input id="biz-phone" type="text" value="${esc(p.phone)}" />
+          <input id="biz-phone" type="text" value="${escapeHtml(p.phone)}" />
         </div>
         <div class="field">
           <label for="biz-email">Email</label>
-          <input id="biz-email" type="email" value="${esc(p.email)}" />
+          <input id="biz-email" type="email" value="${escapeHtml(p.email)}" />
         </div>
         <div class="field">
           <label for="biz-uen">UEN</label>
-          <input id="biz-uen" type="text" value="${esc(p.uen)}" placeholder="e.g. 123456789A" />
+          <input id="biz-uen" type="text" value="${escapeHtml(p.uen)}" placeholder="e.g. 123456789A" />
         </div>
         <div class="field checkbox-row" style="align-self:end;padding-bottom:0.35rem">
           <input id="biz-paynow-uen" type="checkbox" ${p.paynowUen ? "checked" : ""} />
@@ -246,7 +226,7 @@ function renderForm(container: HTMLElement): void {
         </div>
         <div class="field">
           <label for="biz-prefix">Invoice prefix</label>
-          <input id="biz-prefix" type="text" value="${esc(p.invoicePrefix)}" />
+          <input id="biz-prefix" type="text" value="${escapeHtml(p.invoicePrefix)}" />
         </div>
         <div class="field field--full checkbox-row">
           <input id="biz-gst-reg" type="checkbox" ${p.gstRegistered ? "checked" : ""} />
@@ -255,7 +235,7 @@ function renderForm(container: HTMLElement): void {
         ${p.gstRegistered ? `
         <div class="field">
           <label for="biz-gst-no">GST registration number</label>
-          <input id="biz-gst-no" type="text" value="${esc(p.gstRegistrationNumber)}" />
+          <input id="biz-gst-no" type="text" value="${escapeHtml(p.gstRegistrationNumber)}" />
         </div>
         <div class="field">
           <label for="biz-calc">GST calculation method</label>
@@ -270,15 +250,15 @@ function renderForm(container: HTMLElement): void {
         </div>` : ""}
         <div class="field">
           <label for="biz-bank">Bank name</label>
-          <input id="biz-bank" type="text" value="${esc(p.bankName)}" />
+          <input id="biz-bank" type="text" value="${escapeHtml(p.bankName)}" />
         </div>
         <div class="field">
           <label for="biz-account">Bank account</label>
-          <input id="biz-account" type="text" value="${esc(p.bankAccount)}" />
+          <input id="biz-account" type="text" value="${escapeHtml(p.bankAccount)}" />
         </div>
         <div class="field">
           <label for="biz-paynow">PayNow mobile</label>
-          <input id="biz-paynow" type="text" value="${esc(p.paynow)}" placeholder="e.g. 91234567" />
+          <input id="biz-paynow" type="text" value="${escapeHtml(p.paynow)}" placeholder="e.g. 91234567" />
         </div>
         <div class="field checkbox-row">
           <input id="biz-paynow-mobile" type="checkbox" ${p.paynowMobile ? "checked" : ""} />
@@ -289,31 +269,34 @@ function renderForm(container: HTMLElement): void {
           <label for="biz-cod">Cash on delivery</label>
         </div>
       </div>
-    </div>
+    </div>`;
+}
 
-    <div class="${section("invoice")}" data-section="invoice">
+function invoiceSectionHtml(inv: Invoice, dt: DocumentType): string {
+  return `
+    <div class="${sectionClass("invoice")}" data-section="invoice">
       <div class="invoice-tab-header">
-        <p id="form-doc-type-badge" class="badge">${esc(docTypeLabel(dt))}</p>
+        <p id="form-doc-type-badge" class="badge">${escapeHtml(docTypeLabel(dt))}</p>
       </div>
       <div class="form-grid form-grid--2">
         <div class="field">
           <label for="inv-no">Invoice number</label>
           <div style="display:flex;gap:0.5rem">
-            <input id="inv-no" type="text" value="${esc(inv.invoiceNumber)}" style="flex:1" />
+            <input id="inv-no" type="text" value="${escapeHtml(inv.invoiceNumber)}" style="flex:1" />
             <button type="button" class="btn btn--sm" id="btn-new-no">New no.</button>
           </div>
         </div>
         <div class="field">
           <label for="inv-date">Date</label>
-          <input id="inv-date" type="date" value="${esc(inv.date)}" />
+          <input id="inv-date" type="date" value="${escapeHtml(inv.date)}" />
         </div>
         <div class="field">
           <label for="inv-due">Due date</label>
-          <input id="inv-due" type="date" value="${esc(inv.dueDate)}" />
+          <input id="inv-due" type="date" value="${escapeHtml(inv.dueDate)}" />
         </div>
         <div class="field field--full">
           <label for="inv-terms">Payment terms</label>
-          <input id="inv-terms" type="text" value="${esc(inv.paymentTerms)}" />
+          <input id="inv-terms" type="text" value="${escapeHtml(inv.paymentTerms)}" />
         </div>
         <div class="field field--full checkbox-row">
           <input id="inv-credit-note" type="checkbox" ${inv.isCreditNote ? "checked" : ""} />
@@ -322,16 +305,19 @@ function renderForm(container: HTMLElement): void {
         ${inv.isCreditNote ? `
         <div class="field field--full">
           <label for="inv-orig-no">Original invoice number</label>
-          <input id="inv-orig-no" type="text" value="${esc(inv.originalInvoiceNumber)}" placeholder="e.g. INV-2026-0001" />
+          <input id="inv-orig-no" type="text" value="${escapeHtml(inv.originalInvoiceNumber)}" placeholder="e.g. INV-2026-0001" />
         </div>` : ""}
       </div>
-    </div>
+    </div>`;
+}
 
-    <div class="${section("customer")}" data-section="customer">
+function customerSectionHtml(inv: Invoice, p: BusinessProfile): string {
+  return `
+    <div class="${sectionClass("customer")}" data-section="customer">
       <div class="form-grid form-grid--2">
         <div class="field">
           <label for="cust-name">Name</label>
-          <input id="cust-name" type="text" value="${esc(inv.customer.name)}" />
+          <input id="cust-name" type="text" value="${escapeHtml(inv.customer.name)}" />
         </div>
         <div class="field checkbox-row" style="align-self:end;padding-bottom:0.35rem">
           <input id="cust-gst" type="checkbox" ${inv.customer.gstRegistered ? "checked" : ""} ${!p.gstRegistered ? "disabled" : ""} />
@@ -339,12 +325,15 @@ function renderForm(container: HTMLElement): void {
         </div>
         <div class="field field--full">
           <label for="cust-addr">Address</label>
-          <textarea id="cust-addr" rows="2">${esc(inv.customer.address)}</textarea>
+          <textarea id="cust-addr" rows="2">${escapeHtml(inv.customer.address)}</textarea>
         </div>
       </div>
-    </div>
+    </div>`;
+}
 
-    <div class="${section("items")}" data-section="items">
+function itemsSectionHtml(inv: Invoice, t: TotalsResult): string {
+  return `
+    <div class="${sectionClass("items")}" data-section="items">
       <div class="line-items" id="line-items"></div>
       <button type="button" class="btn btn--sm add-line-btn" id="btn-add-line">+ Add line item</button>
       <div class="form-grid form-grid--2" style="margin-top:1.25rem">
@@ -362,13 +351,27 @@ function renderForm(container: HTMLElement): void {
         </div>
         <div class="field field--full">
           <label for="inv-notes">Notes</label>
-          <textarea id="inv-notes" rows="2">${esc(inv.notes)}</textarea>
+          <textarea id="inv-notes" rows="2">${escapeHtml(inv.notes)}</textarea>
         </div>
       </div>
-    </div>
-  `;
+    </div>`;
+}
 
-  // Logo upload / remove
+// ── Form rendering & binding ─────────────────────────────────────────────────
+
+function renderForm(container: HTMLElement): void {
+  const p = state.profile;
+  const inv = state.invoice;
+  const t = totals();
+  const dt = docType();
+
+  container.innerHTML =
+    businessSectionHtml(p) +
+    invoiceSectionHtml(inv, dt) +
+    customerSectionHtml(inv, p) +
+    itemsSectionHtml(inv, t);
+
+  // Logo
   const logoInput = document.querySelector<HTMLInputElement>("#logo-input");
   if (logoInput) {
     logoInput.addEventListener("change", async () => {
@@ -388,7 +391,7 @@ function renderForm(container: HTMLElement): void {
     });
   }
 
-  // Profile bindings
+  // Business profile
   bindInput(q("#biz-name"), () => p.name, (v) => { p.name = v as string; });
   bindInput(q("#biz-address"), () => p.address, (v) => { p.address = v as string; });
   bindInput(q("#biz-phone"), () => p.phone, (v) => { p.phone = v as string; });
@@ -409,7 +412,7 @@ function renderForm(container: HTMLElement): void {
   bindInput(q("#biz-paynow-mobile"), () => p.paynowMobile, (v) => { p.paynowMobile = v as boolean; }, true);
   bindInput(q("#biz-cod"), () => p.cashOnDelivery, (v) => { p.cashOnDelivery = v as boolean; }, true);
 
-  // Invoice bindings
+  // Invoice
   bindInput(q("#inv-no"), () => inv.invoiceNumber, (v) => { inv.invoiceNumber = v as string; });
   bindInput(q("#inv-date"), () => inv.date, (v) => { inv.date = v as string; });
   bindInput(q("#inv-due"), () => inv.dueDate, (v) => { inv.dueDate = v as string; });
@@ -417,17 +420,20 @@ function renderForm(container: HTMLElement): void {
   bindInput(q("#inv-credit-note"), () => inv.isCreditNote, (v) => { inv.isCreditNote = v as boolean; }, true);
   const origNoEl = document.querySelector<HTMLInputElement>("#inv-orig-no");
   if (origNoEl) bindInput(origNoEl, () => inv.originalInvoiceNumber, (v) => { inv.originalInvoiceNumber = v as string; });
+
+  // Customer
   bindInput(q("#cust-name"), () => inv.customer.name, (v) => { inv.customer.name = v as string; });
   bindInput(q("#cust-gst"), () => inv.customer.gstRegistered, (v) => { inv.customer.gstRegistered = v as boolean; });
   bindInput(q("#cust-addr"), () => inv.customer.address, (v) => { inv.customer.address = v as string; });
+
+  // Items
   bindInput(q("#inv-discount"), () => inv.discountExGst, (v) => { inv.discountExGst = v as number; });
   bindInput(q("#inv-notes"), () => inv.notes, (v) => { inv.notes = v as string; });
 
   q("#btn-new-no").addEventListener("click", () => {
-    const year = new Date().getFullYear();
     state.invoice.invoiceNumber = nextInvoiceNumber(
       state.profile.invoicePrefix,
-      year,
+      new Date().getFullYear(),
       state.nextSequence,
     );
     state.nextSequence += 1;
@@ -438,12 +444,7 @@ function renderForm(container: HTMLElement): void {
   const linesEl = q("#line-items");
   renderLineItems(linesEl);
   q("#btn-add-line").addEventListener("click", () => {
-    inv.lineItems.push({
-      id: crypto.randomUUID(),
-      description: "",
-      quantity: 1,
-      unitPriceExGst: 0,
-    });
+    inv.lineItems.push({ id: crypto.randomUUID(), description: "", quantity: 1, unitPriceExGst: 0 });
     persistAndRender();
   });
 }
@@ -452,21 +453,21 @@ function renderLineItems(container: HTMLElement): void {
   container.innerHTML = state.invoice.lineItems
     .map(
       (item: LineItem, i: number) => `
-    <div class="line-item" data-id="${item.id}">
-      <div class="field">
-        <label>Description</label>
-        <textarea data-field="desc" rows="2">${esc(item.description)}</textarea>
-      </div>
-      <div class="field">
-        <label>Qty</label>
-        <input type="number" data-field="qty" min="0" step="1" value="${item.quantity}" />
-      </div>
-      <div class="field">
-        <label>Unit price ${state.profile.gstRegistered ? "(ex GST)" : ""}</label>
-        <input type="number" data-field="price" min="0" step="0.01" value="${item.unitPriceExGst}" />
-      </div>
-      <button type="button" class="btn btn--sm btn--danger line-remove-btn" data-remove="${i}" ${state.invoice.lineItems.length <= 1 ? "disabled" : ""}>✕</button>
-    </div>`,
+      <div class="line-item" data-id="${item.id}">
+        <div class="field">
+          <label>Description</label>
+          <textarea data-field="desc" rows="2">${escapeHtml(item.description)}</textarea>
+        </div>
+        <div class="field">
+          <label>Qty</label>
+          <input type="number" data-field="qty" min="0" step="1" value="${item.quantity}" />
+        </div>
+        <div class="field">
+          <label>Unit price ${state.profile.gstRegistered ? "(ex GST)" : ""}</label>
+          <input type="number" data-field="price" min="0" step="0.01" value="${item.unitPriceExGst}" />
+        </div>
+        <button type="button" class="btn btn--sm btn--danger line-remove-btn" data-remove="${i}" ${state.invoice.lineItems.length <= 1 ? "disabled" : ""}>✕</button>
+      </div>`,
     )
     .join("");
 
@@ -495,20 +496,11 @@ function renderLineItems(container: HTMLElement): void {
   });
 }
 
-function esc(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function q<T extends HTMLElement = HTMLElement>(sel: string): T {
-  return document.querySelector(sel) as T;
-}
+// ── App shell ────────────────────────────────────────────────────────────────
 
 function render(): void {
   const issues = validationIssues();
+  const dt = docType();
   const root = q("#app");
 
   root.innerHTML = `
@@ -534,22 +526,22 @@ function render(): void {
     <div class="layout layout--split">
       <section class="panel">
         <div class="form-tab-bar no-print">
-          <button class="${tab("business")}" data-tab="business">
+          <button class="${tabClass("business")}" data-tab="business">
             <span class="form-tab-num">01</span>Business
           </button>
-          <button class="${tab("invoice")}" data-tab="invoice">
+          <button class="${tabClass("invoice")}" data-tab="invoice">
             <span class="form-tab-num">02</span>Invoice
           </button>
-          <button class="${tab("customer")}" data-tab="customer">
+          <button class="${tabClass("customer")}" data-tab="customer">
             <span class="form-tab-num">03</span>Customer
           </button>
-          <button class="${tab("items")}" data-tab="items">
+          <button class="${tabClass("items")}" data-tab="items">
             <span class="form-tab-num">04</span>Items
           </button>
         </div>
         <div class="panel__body" id="form-root"></div>
         <div id="validation-container" style="padding:0 1.375rem 1.375rem">
-          ${issues.length ? `<ul class="validation-list">${issues.map((i) => `<li>${esc(i.message)}</li>`).join("")}</ul>` : ""}
+          ${issues.length ? `<ul class="validation-list">${issues.map((i) => `<li>${escapeHtml(i.message)}</li>`).join("")}</ul>` : ""}
         </div>
       </section>
 
@@ -558,7 +550,7 @@ function render(): void {
           <h2>Preview</h2>
           <div class="panel-header-right">
             <span id="preview-total" class="preview-total"></span>
-            <span id="preview-badge" class="badge ${issues.length ? "badge--warn" : ""}">${esc(docTypeLabel(docType()))}</span>
+            <span id="preview-badge" class="badge ${issues.length ? "badge--warn" : ""}">${escapeHtml(docTypeLabel(dt))}</span>
           </div>
         </div>
         <div class="preview-pane" id="preview-root"></div>
@@ -573,7 +565,6 @@ function render(): void {
   if (!state.invoice.invoiceNumber) assignInvoiceNumber();
   renderForm(q("#form-root"));
 
-  // Tab switching — no re-render needed, pure CSS show/hide
   document.querySelectorAll<HTMLButtonElement>(".form-tab[data-tab]").forEach((tabBtn) => {
     tabBtn.addEventListener("click", () => {
       activeFormTab = tabBtn.dataset.tab!;

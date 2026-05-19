@@ -847,32 +847,6 @@ body {
   display: none !important;
 }
 
-/* ── Tabs (legacy, kept for compatibility) ───── */
-
-.tabs {
-  display: flex;
-  padding: 0 1.375rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-alt);
-}
-
-.tab {
-  padding: 0.75rem 1rem;
-  border: none;
-  border-bottom: 2px solid transparent;
-  background: none;
-  font: inherit;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--muted);
-  cursor: pointer;
-  margin-bottom: -1px;
-  transition: color 0.15s ease;
-}
-
-.tab:hover { color: var(--text); }
-.tab--active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
-
 /* ── Print ───────────────────────────────────── */
 
 @media print {

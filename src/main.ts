@@ -72,13 +72,13 @@ async function syncPreview(): Promise<void> {
   const name = state.profile.name || "Payee";
   const qrOpts = { width: 110, margin: 2 };
 
-  if (state.profile.uen) {
+  if (state.profile.uen && state.profile.paynowUen) {
     try {
       const payload = buildPayNowPayload({ payTo: state.profile.uen, name, amount, reference });
       qrImages.uen = await QRCode.toDataURL(payload, qrOpts);
     } catch {}
   }
-  if (state.profile.paynow && isMobileNumber(state.profile.paynow)) {
+  if (state.profile.paynow && isMobileNumber(state.profile.paynow) && state.profile.paynowMobile) {
     try {
       const payload = buildPayNowPayload({ payTo: state.profile.paynow, name, amount, reference });
       qrImages.mobile = await QRCode.toDataURL(payload, qrOpts);
@@ -231,6 +231,10 @@ function renderForm(container: HTMLElement): void {
         <label for="biz-uen">UEN</label>
         <input id="biz-uen" type="text" value="${esc(p.uen)}" placeholder="e.g. 123456789A" />
       </div>
+      <div class="field checkbox-row">
+        <input id="biz-paynow-uen" type="checkbox" ${p.paynowUen ? "checked" : ""} />
+        <label for="biz-paynow-uen">Show PayNow QR (UEN)</label>
+      </div>
       <div class="field">
         <label for="biz-prefix">Invoice prefix</label>
         <input id="biz-prefix" type="text" value="${esc(p.invoicePrefix)}" />
@@ -263,9 +267,17 @@ function renderForm(container: HTMLElement): void {
         <label for="biz-account">Bank account</label>
         <input id="biz-account" type="text" value="${esc(p.bankAccount)}" />
       </div>
-      <div class="field field--full">
-        <label for="biz-paynow">PayNow (UEN / mobile)</label>
-        <input id="biz-paynow" type="text" value="${esc(p.paynow)}" />
+      <div class="field">
+        <label for="biz-paynow">PayNow mobile</label>
+        <input id="biz-paynow" type="text" value="${esc(p.paynow)}" placeholder="e.g. 91234567" />
+      </div>
+      <div class="field checkbox-row">
+        <input id="biz-paynow-mobile" type="checkbox" ${p.paynowMobile ? "checked" : ""} />
+        <label for="biz-paynow-mobile">Show PayNow QR (mobile)</label>
+      </div>
+      <div class="field checkbox-row">
+        <input id="biz-cod" type="checkbox" ${p.cashOnDelivery ? "checked" : ""} />
+        <label for="biz-cod">Cash on delivery</label>
       </div>
     </div>
 
@@ -381,6 +393,9 @@ function renderForm(container: HTMLElement): void {
   bindInput(q("#biz-bank"), () => p.bankName, (v) => { p.bankName = v as string; });
   bindInput(q("#biz-account"), () => p.bankAccount, (v) => { p.bankAccount = v as string; });
   bindInput(q("#biz-paynow"), () => p.paynow, (v) => { p.paynow = v as string; });
+  bindInput(q("#biz-paynow-uen"), () => p.paynowUen, (v) => { p.paynowUen = v as boolean; }, true);
+  bindInput(q("#biz-paynow-mobile"), () => p.paynowMobile, (v) => { p.paynowMobile = v as boolean; }, true);
+  bindInput(q("#biz-cod"), () => p.cashOnDelivery, (v) => { p.cashOnDelivery = v as boolean; }, true);
 
   // Invoice bindings
   bindInput(q("#inv-no"), () => inv.invoiceNumber, (v) => { inv.invoiceNumber = v as string; });

@@ -31,6 +31,9 @@ export interface BusinessProfile {
   bankName: string;
   bankAccount: string;
   paynow: string;
+  paynowUen: boolean;
+  paynowMobile: boolean;
+  cashOnDelivery: boolean;
   invoicePrefix: string;
   calculationMethod: CalculationMethod;
   roundCashToFiveCents: boolean;

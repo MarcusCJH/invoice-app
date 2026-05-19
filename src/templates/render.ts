@@ -114,26 +114,27 @@ export function renderInvoiceHtml(state: AppState, qrImages: { uen?: string; mob
       ${invoice.paymentTerms ? `<p class="invoice-doc__terms">${escapeHtml(invoice.paymentTerms)}</p>` : ""}
       ${invoice.notes ? `<p class="invoice-doc__notes"><strong>Notes:</strong> ${escapeHtml(invoice.notes)}</p>` : ""}
 
-      ${profile.bankAccount || profile.paynow || profile.uen ? `
+      ${profile.bankAccount || profile.cashOnDelivery || (profile.paynowUen && profile.uen) || (profile.paynowMobile && profile.paynow && isMobileNumber(profile.paynow)) ? `
       <section class="invoice-doc__payment">
         <h2>Payment</h2>
         <div style="display:flex;gap:1.5rem;align-items:flex-start;flex-wrap:wrap">
           <div>
             ${profile.bankName ? `<p>${escapeHtml(profile.bankName)}</p>` : ""}
             ${profile.bankAccount ? `<p>Account: ${escapeHtml(profile.bankAccount)}</p>` : ""}
+            ${profile.cashOnDelivery ? `<p>Cash on delivery</p>` : ""}
           </div>
-          ${profile.uen ? `
+          ${profile.uen && profile.paynowUen ? `
           <div style="text-align:center;flex-shrink:0">
             ${qrImages.uen ? `<img src="${qrImages.uen}" width="110" height="110" alt="PayNow QR" />` : `<canvas id="paynow-qr-uen" width="110" height="110"></canvas>`}
             <p style="margin:0.2rem 0 0;font-size:0.68rem;color:#555">PayNow (UEN)<br>${escapeHtml(profile.uen)}</p>
           </div>` : ""}
-          ${profile.paynow && isMobileNumber(profile.paynow) ? `
+          ${profile.paynow && profile.paynowMobile && isMobileNumber(profile.paynow) ? `
           <div style="text-align:center;flex-shrink:0">
             ${qrImages.mobile ? `<img src="${qrImages.mobile}" width="110" height="110" alt="PayNow QR" />` : `<canvas id="paynow-qr-mobile" width="110" height="110"></canvas>`}
             <p style="margin:0.2rem 0 0;font-size:0.68rem;color:#555">PayNow (Mobile)<br>${escapeHtml(profile.paynow)}</p>
           </div>` : ""}
         </div>
-        ${profile.uen || (profile.paynow && isMobileNumber(profile.paynow)) ? `<p style="margin:0.5rem 0 0;font-size:0.7rem;color:#777">Scan QR with your banking app (DBS/POSB, OCBC, UOB…)</p>` : ""}
+        ${(profile.uen && profile.paynowUen) || (profile.paynow && profile.paynowMobile && isMobileNumber(profile.paynow)) ? `<p style="margin:0.5rem 0 0;font-size:0.7rem;color:#777">Scan QR with your banking app (DBS/POSB, OCBC, UOB…)</p>` : ""}
       </section>` : ""}
 
     </article>

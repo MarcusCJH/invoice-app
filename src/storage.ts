@@ -45,6 +45,7 @@ export const defaultInvoice = (): Invoice => ({
   discountExGst: 0,
   isCreditNote: false,
   originalInvoiceNumber: "",
+  isPaid: false,
 });
 
 export function defaultState(): AppState {

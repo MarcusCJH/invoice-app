@@ -52,6 +52,7 @@ export interface Invoice {
   discountExGst: number;
   isCreditNote: boolean;
   originalInvoiceNumber: string;
+  isPaid: boolean;
 }
 
 export interface AppState {

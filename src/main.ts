@@ -302,6 +302,10 @@ function invoiceSectionHtml(inv: Invoice, dt: DocumentType): string {
           <input id="inv-credit-note" type="checkbox" ${inv.isCreditNote ? "checked" : ""} />
           <label for="inv-credit-note">This is a credit note</label>
         </div>
+        <div class="field field--full checkbox-row">
+          <input id="inv-paid" type="checkbox" ${inv.isPaid ? "checked" : ""} />
+          <label for="inv-paid">Mark as paid</label>
+        </div>
         ${inv.isCreditNote ? `
         <div class="field field--full">
           <label for="inv-orig-no">Original invoice number</label>
@@ -418,6 +422,7 @@ function renderForm(container: HTMLElement): void {
   bindInput(q("#inv-due"), () => inv.dueDate, (v) => { inv.dueDate = v as string; });
   bindInput(q("#inv-terms"), () => inv.paymentTerms, (v) => { inv.paymentTerms = v as string; });
   bindInput(q("#inv-credit-note"), () => inv.isCreditNote, (v) => { inv.isCreditNote = v as boolean; }, true);
+  bindInput(q("#inv-paid"), () => inv.isPaid, (v) => { inv.isPaid = v as boolean; });
   const origNoEl = document.querySelector<HTMLInputElement>("#inv-orig-no");
   if (origNoEl) bindInput(origNoEl, () => inv.originalInvoiceNumber, (v) => { inv.originalInvoiceNumber = v as string; });
 

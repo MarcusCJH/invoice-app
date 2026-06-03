@@ -50,6 +50,7 @@ export function renderInvoiceHtml(state: AppState, qrImages: { uen?: string; mob
 
   return `
     <article class="invoice-doc" data-doc-type="${docType}">
+      ${invoice.isPaid ? '<div class="invoice-doc__paid-stamp">Paid</div>' : ""}
       <header class="invoice-doc__header">
         <div class="invoice-doc__brand">
           ${profile.logo ? `<img src="${profile.logo}" class="invoice-doc__logo" alt="" />` : ""}
@@ -105,10 +106,10 @@ export function renderInvoiceHtml(state: AppState, qrImages: { uen?: string; mob
         <div class="totals-row"><span>GST @ ${GST_RATE * 100}%</span><span>${formatMoney(totals.gstAmount, invoice.currency)}</span></div>` : ""}
         ` : ""}
         <div class="totals-row totals-row--grand">
-          <span>Total payable</span>
+          <span>${invoice.isPaid ? "Total paid" : "Total payable"}</span>
           <span>${formatMoney(showGst ? totals.totalInclGst : totals.taxableExGst, invoice.currency)}</span>
         </div>
-        ${includesGstStatement(docType) ? '<p class="gst-statement">Price payable includes GST</p>' : ""}
+        ${includesGstStatement(docType) ? `<p class="gst-statement">Price ${invoice.isPaid ? "paid includes" : "payable includes"} GST</p>` : ""}
       </section>
 
       ${invoice.paymentTerms ? `<p class="invoice-doc__terms">${escapeHtml(invoice.paymentTerms)}</p>` : ""}

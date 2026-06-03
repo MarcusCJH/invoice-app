@@ -74,6 +74,7 @@ const DEMO_STATE = {
     discountExGst: 0,
     isCreditNote: false,
     originalInvoiceNumber: "",
+    isPaid: false,
   },
   nextSequence: 43,
 };
@@ -122,6 +123,20 @@ async function capture() {
 
   await page.locator("#preview-root .invoice-doc").screenshot({
     path: path.join(OUT_DIR, "invoice-document.png"),
+  });
+
+  // Paid stamp screenshot
+  await page.evaluate(() => {
+    const raw = localStorage.getItem("sg-invoice-app-v1");
+    const s = JSON.parse(raw);
+    s.invoice.isPaid = true;
+    localStorage.setItem("sg-invoice-app-v1", JSON.stringify(s));
+  });
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForSelector("#preview-root .invoice-doc", { timeout: 15000 });
+  await page.waitForTimeout(800);
+  await page.locator("#preview-root .invoice-doc").screenshot({
+    path: path.join(OUT_DIR, "invoice-paid.png"),
   });
 
   await seedPage(page, "light");

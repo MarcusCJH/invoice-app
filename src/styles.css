@@ -788,18 +788,18 @@ body {
 
 .invoice-doc__paid-stamp {
   position: absolute;
-  top: 1.25rem;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%) rotate(-8deg);
-  border: 6px solid #16a34a;
-  color: #16a34a;
-  font-size: 2.5rem;
+  transform: translate(-50%, -50%) rotate(-20deg);
+  border: 8px solid #dc2626;
+  color: #dc2626;
+  font-size: 4rem;
   font-weight: 900;
-  letter-spacing: 0.25em;
+  letter-spacing: 0.3em;
   text-transform: uppercase;
-  padding: 0.3rem 1.25rem;
-  border-radius: 6px;
-  opacity: 0.45;
+  padding: 0.4rem 1.5rem;
+  border-radius: 8px;
+  opacity: 0.35;
   pointer-events: none;
   font-family: var(--mono);
   white-space: nowrap;

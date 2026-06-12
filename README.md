@@ -11,15 +11,18 @@ A Singapore-focused invoice web app for small and home-based businesses. Create 
 - **Line items** — quantity, unit price (ex-GST when registered), per-line discounts
 - **GST @ 9%** — per-line or on-subtotal calculation (both IRAS-accepted)
 - **PayNow QR codes** — generated from UEN or mobile number, pre-filled with invoice total
+- **Invoice history** — past invoices are saved automatically (on print, new invoice, or open); reopen, duplicate for recurring clients, or delete
+- **Paid stamp** — mark an invoice as paid to add a "Paid" stamp and switch wording to "Total paid"
 - **Dark / light theme** — persisted in `localStorage`
 - **Live preview** — print or save as PDF via the browser
-- **Local storage** — data stays on your device; export / import JSON backup
+- **Local storage** — data stays on your device; export / import JSON backup (includes history)
 
 ## Quick start
 
 ```bash
 npm install
 npm run dev      # dev server with hot reload
+npm test         # unit tests (Vitest)
 ```
 
 Open http://localhost:5173
@@ -81,10 +84,11 @@ invoice-app/
 │   ├── documents.ts    # detectDocumentType() / validateDocument()
 │   ├── paynow.ts       # EMVCo TLV PayNow QR payload builder
 │   ├── format.ts       # formatMoney(), formatDate(), escapeHtml()
-│   ├── storage.ts      # localStorage persistence + JSON export/import
+│   ├── storage.ts      # localStorage persistence, invoice history, JSON export/import
 │   ├── main.ts         # vanilla DOM rendering, state management
-│   └── templates/
-│       └── render.ts   # printable invoice HTML generator
+│   ├── templates/
+│   │   └── render.ts   # printable invoice HTML generator
+│   └── __tests__/      # Vitest unit tests (gst, documents, paynow)
 ├── docs/               # built static site (GitHub Pages)
 ├── package.json
 └── vite.config.ts

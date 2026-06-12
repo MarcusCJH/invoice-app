@@ -23,6 +23,7 @@ export const defaultProfile = (): BusinessProfile => ({
 });
 
 export const defaultInvoice = (): Invoice => ({
+  id: crypto.randomUUID(),
   invoiceNumber: "",
   date: new Date().toISOString().slice(0, 10),
   dueDate: "",
@@ -52,7 +53,18 @@ export function defaultState(): AppState {
   return {
     profile: defaultProfile(),
     invoice: defaultInvoice(),
+    savedInvoices: [],
     nextSequence: 1,
+  };
+}
+
+function mergeInvoice(saved: Partial<Invoice> | undefined): Invoice {
+  const base = defaultInvoice();
+  return {
+    ...base,
+    ...saved,
+    customer: { ...base.customer, ...saved?.customer },
+    lineItems: saved?.lineItems?.length ? saved.lineItems : base.lineItems,
   };
 }
 
@@ -65,25 +77,44 @@ export function loadState(): AppState {
       ...defaultState(),
       ...parsed,
       profile: { ...defaultProfile(), ...parsed.profile },
-      invoice: {
-        ...defaultInvoice(),
-        ...parsed.invoice,
-        customer: {
-          ...defaultInvoice().customer,
-          ...parsed.invoice?.customer,
-        },
-        lineItems: parsed.invoice?.lineItems?.length
-          ? parsed.invoice.lineItems
-          : defaultInvoice().lineItems,
-      },
+      invoice: mergeInvoice(parsed.invoice),
+      savedInvoices: Array.isArray(parsed.savedInvoices)
+        ? parsed.savedInvoices.map(mergeInvoice)
+        : [],
     };
   } catch {
     return defaultState();
   }
 }
 
-export function saveState(state: AppState): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+export function saveState(state: AppState): boolean {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    return true;
+  } catch {
+    // Most likely QuotaExceededError (large logo + long history).
+    return false;
+  }
+}
+
+/** Snapshot the invoice into history (replace by id, newest first). */
+export function upsertSavedInvoice(state: AppState, invoice: Invoice): void {
+  const copy = JSON.parse(JSON.stringify(invoice)) as Invoice;
+  const idx = state.savedInvoices.findIndex((inv) => inv.id === copy.id);
+  if (idx >= 0) {
+    state.savedInvoices[idx] = copy;
+  } else {
+    state.savedInvoices.unshift(copy);
+  }
+}
+
+/** True if the invoice has anything worth keeping in history. */
+export function invoiceHasContent(invoice: Invoice): boolean {
+  return (
+    invoice.lineItems.some((l) => l.description.trim() || l.unitPriceExGst > 0) ||
+    !!invoice.customer.name.trim() ||
+    !!invoice.notes.trim()
+  );
 }
 
 export function exportJson(state: AppState): string {
@@ -92,6 +123,7 @@ export function exportJson(state: AppState): string {
       exportedAt: new Date().toISOString(),
       profile: state.profile,
       invoice: state.invoice,
+      savedInvoices: state.savedInvoices,
       nextSequence: state.nextSequence,
     },
     null,
@@ -103,11 +135,10 @@ export function importJson(text: string): AppState {
   const data = JSON.parse(text) as Partial<AppState> & { profile?: BusinessProfile; invoice?: Invoice };
   return {
     profile: { ...defaultProfile(), ...data.profile },
-    invoice: {
-      ...defaultInvoice(),
-      ...data.invoice,
-      customer: { ...defaultInvoice().customer, ...data.invoice?.customer },
-    },
+    invoice: mergeInvoice(data.invoice),
+    savedInvoices: Array.isArray(data.savedInvoices)
+      ? data.savedInvoices.map(mergeInvoice)
+      : [],
     nextSequence: data.nextSequence ?? 1,
   };
 }

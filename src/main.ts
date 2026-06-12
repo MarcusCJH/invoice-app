@@ -2,9 +2,18 @@ import "./styles.css";
 import QRCode from "qrcode";
 import { detectDocumentType, validateDocument } from "./documents";
 import { calculateTotals } from "./gst";
-import { escapeHtml, formatMoney } from "./format";
+import { escapeHtml, formatDate, formatMoney } from "./format";
 import { buildPayNowPayload, isMobileNumber } from "./paynow";
-import { exportJson, importJson, loadState, nextInvoiceNumber, saveState } from "./storage";
+import {
+  defaultInvoice,
+  exportJson,
+  importJson,
+  invoiceHasContent,
+  loadState,
+  nextInvoiceNumber,
+  saveState,
+  upsertSavedInvoice,
+} from "./storage";
 import { docTypeLabel, renderInvoiceHtml } from "./templates/render";
 import type { AppState, BusinessProfile, DocumentType, Invoice, LineItem, TotalsResult } from "./types";
 
@@ -95,19 +104,29 @@ async function syncPreview(): Promise<void> {
 
   const validEl = document.getElementById("validation-container");
   if (validEl) {
-    validEl.innerHTML = issues.length
-      ? `<ul class="validation-list">${issues.map((i) => `<li>${escapeHtml(i.message)}</li>`).join("")}</ul>`
-      : "";
+    validEl.innerHTML = validationListHtml(issues);
   }
 }
 
+function validationListHtml(issues: { message: string }[]): string {
+  const messages = issues.map((i) => i.message);
+  if (storageSaveFailed) {
+    messages.push("Could not save to browser storage (storage full?). Recent changes may be lost — export a JSON backup.");
+  }
+  return messages.length
+    ? `<ul class="validation-list">${messages.map((m) => `<li>${escapeHtml(m)}</li>`).join("")}</ul>`
+    : "";
+}
+
+let storageSaveFailed = false;
+
 function persist(): void {
-  saveState(state);
+  storageSaveFailed = !saveState(state);
   void syncPreview();
 }
 
 function persistAndRender(): void {
-  saveState(state);
+  storageSaveFailed = !saveState(state);
   render();
 }
 
@@ -120,6 +139,54 @@ function assignInvoiceNumber(): void {
     );
     state.nextSequence += 1;
   }
+}
+
+/** Keep a snapshot of the current invoice in history (if it has content). */
+function snapshotCurrentInvoice(): void {
+  if (invoiceHasContent(state.invoice)) {
+    upsertSavedInvoice(state, state.invoice);
+  }
+}
+
+function startNewInvoice(): void {
+  snapshotCurrentInvoice();
+  state.invoice = defaultInvoice();
+  assignInvoiceNumber();
+  activeFormTab = "invoice";
+  persistAndRender();
+}
+
+function openSavedInvoice(id: string): void {
+  const saved = state.savedInvoices.find((inv) => inv.id === id);
+  if (!saved) return;
+  snapshotCurrentInvoice();
+  state.invoice = JSON.parse(JSON.stringify(saved)) as Invoice;
+  activeFormTab = "invoice";
+  persistAndRender();
+}
+
+function duplicateSavedInvoice(id: string): void {
+  const saved = state.savedInvoices.find((inv) => inv.id === id);
+  if (!saved) return;
+  snapshotCurrentInvoice();
+  const copy = JSON.parse(JSON.stringify(saved)) as Invoice;
+  copy.id = crypto.randomUUID();
+  copy.invoiceNumber = "";
+  copy.date = new Date().toISOString().slice(0, 10);
+  copy.dueDate = "";
+  copy.isPaid = false;
+  state.invoice = copy;
+  assignInvoiceNumber();
+  activeFormTab = "invoice";
+  persistAndRender();
+}
+
+function deleteSavedInvoice(id: string): void {
+  const saved = state.savedInvoices.find((inv) => inv.id === id);
+  if (!saved) return;
+  if (!window.confirm(`Delete ${saved.invoiceNumber || "this invoice"} from history?`)) return;
+  state.savedInvoices = state.savedInvoices.filter((inv) => inv.id !== id);
+  persistAndRender();
 }
 
 async function readLogoDataUrl(file: File): Promise<string> {
@@ -361,6 +428,44 @@ function itemsSectionHtml(inv: Invoice, t: TotalsResult): string {
     </div>`;
 }
 
+function historySectionHtml(): string {
+  const rows = state.savedInvoices
+    .map((inv) => {
+      const t = calculateTotals(inv.lineItems, {
+        discountExGst: inv.discountExGst,
+        method: state.profile.calculationMethod,
+        roundCash: state.profile.roundCashToFiveCents,
+      });
+      const total = state.profile.gstRegistered ? t.totalInclGst : t.taxableExGst;
+      const isCurrent = inv.id === state.invoice.id;
+      return `
+      <div class="history-row${isCurrent ? " history-row--current" : ""}" data-id="${inv.id}">
+        <div class="history-row__main">
+          <span class="history-row__number">${escapeHtml(inv.invoiceNumber || "(no number)")}</span>
+          <span class="history-row__customer">${escapeHtml(inv.customer.name || "—")}</span>
+          <span class="history-row__meta">${escapeHtml(formatDate(inv.date))} · ${formatMoney(total, inv.currency)}</span>
+        </div>
+        <div class="history-row__badges">
+          ${inv.isPaid ? '<span class="badge">Paid</span>' : ""}
+          ${inv.isCreditNote ? '<span class="badge">Credit note</span>' : ""}
+          ${isCurrent ? '<span class="badge">Open</span>' : ""}
+        </div>
+        <div class="history-row__actions">
+          <button type="button" class="btn btn--sm" data-history-open="${inv.id}" ${isCurrent ? "disabled" : ""}>Open</button>
+          <button type="button" class="btn btn--sm" data-history-copy="${inv.id}">Duplicate</button>
+          <button type="button" class="btn btn--sm btn--danger" data-history-delete="${inv.id}">✕</button>
+        </div>
+      </div>`;
+    })
+    .join("");
+
+  return `
+    <div class="${sectionClass("history")}" data-section="history">
+      <p class="history-hint">Invoices are saved here when you print, start a new invoice, or open another one. Everything stays in this browser — use Export for a backup.</p>
+      ${rows || `<p class="history-empty">No saved invoices yet.</p>`}
+    </div>`;
+}
+
 // ── Form rendering & binding ─────────────────────────────────────────────────
 
 function renderForm(container: HTMLElement): void {
@@ -373,7 +478,16 @@ function renderForm(container: HTMLElement): void {
     businessSectionHtml(p) +
     invoiceSectionHtml(inv, dt) +
     customerSectionHtml(inv, p) +
-    itemsSectionHtml(inv, t);
+    itemsSectionHtml(inv, t) +
+    historySectionHtml();
+
+  // History actions
+  container.querySelectorAll<HTMLButtonElement>("[data-history-open]").forEach((btn) =>
+    btn.addEventListener("click", () => openSavedInvoice(btn.dataset.historyOpen!)));
+  container.querySelectorAll<HTMLButtonElement>("[data-history-copy]").forEach((btn) =>
+    btn.addEventListener("click", () => duplicateSavedInvoice(btn.dataset.historyCopy!)));
+  container.querySelectorAll<HTMLButtonElement>("[data-history-delete]").forEach((btn) =>
+    btn.addEventListener("click", () => deleteSavedInvoice(btn.dataset.historyDelete!)));
 
   // Logo
   const logoInput = document.querySelector<HTMLInputElement>("#logo-input");
@@ -519,6 +633,7 @@ function render(): void {
       </div>
       <div class="header-actions">
         <button type="button" class="btn btn--ghost btn--sm" id="btn-theme">${document.documentElement.dataset.theme === "dark" ? "☀ Light" : "☾ Dark"}</button>
+        <button type="button" class="btn btn--sm" id="btn-new-invoice">+ New invoice</button>
         <button type="button" class="btn btn--sm" id="btn-export">Export</button>
         <label class="btn btn--sm" style="cursor:pointer">
           Import
@@ -543,10 +658,13 @@ function render(): void {
           <button class="${tabClass("items")}" data-tab="items">
             <span class="form-tab-num">04</span>Items
           </button>
+          <button class="${tabClass("history")}" data-tab="history">
+            <span class="form-tab-num">05</span>History${state.savedInvoices.length ? ` (${state.savedInvoices.length})` : ""}
+          </button>
         </div>
         <div class="panel__body" id="form-root"></div>
         <div id="validation-container" style="padding:0 1.375rem 1.375rem">
-          ${issues.length ? `<ul class="validation-list">${issues.map((i) => `<li>${escapeHtml(i.message)}</li>`).join("")}</ul>` : ""}
+          ${validationListHtml(issues)}
         </div>
       </section>
 
@@ -581,7 +699,12 @@ function render(): void {
   });
 
   q("#btn-theme").addEventListener("click", toggleTheme);
-  q("#btn-print").addEventListener("click", () => window.print());
+  q("#btn-new-invoice").addEventListener("click", startNewInvoice);
+  q("#btn-print").addEventListener("click", () => {
+    snapshotCurrentInvoice();
+    storageSaveFailed = !saveState(state);
+    window.print();
+  });
   q("#btn-export").addEventListener("click", () => {
     const blob = new Blob([exportJson(state)], { type: "application/json" });
     const a = document.createElement("a");

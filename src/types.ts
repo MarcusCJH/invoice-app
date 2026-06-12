@@ -41,6 +41,7 @@ export interface BusinessProfile {
 }
 
 export interface Invoice {
+  id: string;
   invoiceNumber: string;
   date: string;
   dueDate: string;
@@ -58,6 +59,7 @@ export interface Invoice {
 export interface AppState {
   profile: BusinessProfile;
   invoice: Invoice;
+  savedInvoices: Invoice[];
   nextSequence: number;
 }
 

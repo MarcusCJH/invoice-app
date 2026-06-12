@@ -7,13 +7,15 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "test": "vitest run",
     "screenshots": "node scripts/capture-screenshots.mjs"
   },
   "devDependencies": {
     "@types/qrcode": "^1.5.6",
     "playwright": "^1.60.0",
     "typescript": "~5.9",
-    "vite": "^6.4.2"
+    "vite": "^6.4.2",
+    "vitest": "^4.1.8"
   },
   "dependencies": {
     "qrcode": "^1.5.4"
